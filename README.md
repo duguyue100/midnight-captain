@@ -115,24 +115,6 @@ Launches in the current directory with dual panes.
 | `?` | Show help overlay |
 | `q` | Quit |
 
-### Search Overlay
-
-| Key | Action |
-|-----|--------|
-| _(type)_ | Filter results |
-| `ctrl+j` / `ctrl+k` | Next / previous result |
-| `enter` | Navigate to selected file |
-| `esc` | Close |
-
-### Goto Overlay (`:goto`)
-
-| Key | Action |
-|-----|--------|
-| _(type)_ | Type path (`~` expanded) |
-| `tab` / `↑` / `↓` | Cycle directory listing |
-| `enter` | Jump to path |
-| `esc` | Close |
-
 ---
 
 ## Commands
