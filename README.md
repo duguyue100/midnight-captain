@@ -147,8 +147,6 @@ Open with `:`, then type a command.
 | `:find` | Recursive fuzzy search from current directory |
 | `:sort name\|size\|date` | Change sort order |
 | `:hidden` | Toggle hidden files |
-| `:mkdir <name>` | Create a new directory |
-| `:touch <name>` | Create an empty file |
 | `:quit` | Exit |
 
 ---

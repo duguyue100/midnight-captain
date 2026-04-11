@@ -417,22 +417,6 @@ func (m *Model) handleInputResult(msg dialog.InputResultMsg) tea.Cmd {
 		return tea.Batch(cmd, func() tea.Msg {
 			return ops.ProgressMsg{OpID: "rename", Status: ops.StatusRunning}
 		})
-	case "mkdir":
-		path := filepath.Join(ap.Cwd, msg.Value)
-		if err := ap.FS.Mkdir(path, 0o755); err != nil {
-			m.Statusbar.Message = "mkdir: " + err.Error()
-		} else {
-			ap.Reload()
-		}
-	case "touch":
-		path := filepath.Join(ap.Cwd, msg.Value)
-		f, err := ap.FS.Create(path, 0o644)
-		if err != nil {
-			m.Statusbar.Message = "touch: " + err.Error()
-		} else {
-			f.Close()
-			ap.Reload()
-		}
 	default:
 		// "create:<baseDir>" — smart create: dir if trailing /, else file
 		if strings.HasPrefix(msg.ID, "create:") {
@@ -464,42 +448,6 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 			ap.SortBy = 0
 		}
 		ap.Reload()
-
-	case "mkdir":
-		name := ""
-		if len(msg.Args) > 0 {
-			name = msg.Args[0]
-		}
-		if name != "" {
-			path := filepath.Join(ap.Cwd, name)
-			if err := ap.FS.Mkdir(path, 0o755); err != nil {
-				m.Statusbar.Message = "mkdir: " + err.Error()
-			} else {
-				ap.Reload()
-			}
-		} else {
-			m.Input = dialog.NewInput("mkdir", "New directory name:", "")
-			return m.Input.Open()
-		}
-
-	case "touch":
-		name := ""
-		if len(msg.Args) > 0 {
-			name = msg.Args[0]
-		}
-		if name != "" {
-			path := filepath.Join(ap.Cwd, name)
-			f, err := ap.FS.Create(path, 0o644)
-			if err != nil {
-				m.Statusbar.Message = "touch: " + err.Error()
-			} else {
-				f.Close()
-				ap.Reload()
-			}
-		} else {
-			m.Input = dialog.NewInput("touch", "New file name:", "")
-			return m.Input.Open()
-		}
 
 	case "ssh":
 		target := ""

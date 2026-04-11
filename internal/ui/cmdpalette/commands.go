@@ -33,32 +33,6 @@ func builtinCommands() []Command {
 			},
 		},
 		{
-			Name:        "mkdir",
-			Description: "Create directory: mkdir <name>",
-			Action: func(args []string) tea.Cmd {
-				arg := ""
-				if len(args) > 0 {
-					arg = args[0]
-				}
-				return func() tea.Msg {
-					return ExecuteMsg{Name: "mkdir", Args: []string{arg}}
-				}
-			},
-		},
-		{
-			Name:        "touch",
-			Description: "Create empty file: touch <name>",
-			Action: func(args []string) tea.Cmd {
-				arg := ""
-				if len(args) > 0 {
-					arg = args[0]
-				}
-				return func() tea.Msg {
-					return ExecuteMsg{Name: "touch", Args: []string{arg}}
-				}
-			},
-		},
-		{
 			Name:        "ssh",
 			Description: "Connect SSH: ssh user@host",
 			Action: func(args []string) tea.Cmd {

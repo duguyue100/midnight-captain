@@ -117,8 +117,6 @@ var commands = []entry{
 	{":sort name|size|date", "sort entries"},
 	{":hidden", "toggle hidden"},
 	{":goto <path>", "jump to path"},
-	{":mkdir <name>", "create directory"},
-	{":touch <name>", "create file"},
 	{":find", "recursive search"},
 	{":ssh user@host", "connect SSH"},
 	{":disconnect", "disconnect SSH"},
