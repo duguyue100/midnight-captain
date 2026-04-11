@@ -1,7 +1,4 @@
-# midnight-captain
-
-A dual-pane terminal file manager with Vim keybindings and a TokyoNight theme.
-Inspired by Midnight Commander. Single binary, no config file required.
+<img width="2320" height="464" alt="Gemini_Generated_Image_618bk5618bk5618b" src="https://github.com/user-attachments/assets/b28dc1cb-04e1-43c7-b3f8-41f493e10aaa" />
 
 ---
 
