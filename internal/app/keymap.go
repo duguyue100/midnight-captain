@@ -7,11 +7,13 @@ const (
 	keyGBottom = "G"
 	keyColon   = ":"
 	keySlash   = "/"
+	keySearch  = "space"
 	keyYank    = "y"
 	keyCut     = "d"
 	keyPaste   = "p"
 	keyDelete  = "x"
 	keyRename  = "r"
+	keyCreate  = "a"
 	keyOpen    = "e"
 	keyHelp    = "?"
 )

@@ -25,32 +25,48 @@ type NavigateMsg struct {
 
 // Model holds search overlay state.
 type Model struct {
-	input   textinput.Model
-	Visible bool
-	results []SearchResult
-	cursor  int
-	loading bool
-	Width   int
-	Height  int
-	baseDir string // directory being searched
+	input     textinput.Model
+	Visible   bool
+	recursive bool // true = recursive walk mode
+	results   []SearchResult
+	cursor    int
+	loading   bool
+	Width     int
+	Height    int
+	baseDir   string // directory being searched
 }
 
 // New creates a search model.
 func New() Model {
 	ti := textinput.New()
-	ti.Placeholder = "fuzzy search files…"
+	ti.Placeholder = ""
 	ti.CharLimit = 128
 	return Model{input: ti}
 }
 
-// Open shows the search overlay rooted at dir.
-func (m *Model) Open(dir string) tea.Cmd {
+// OpenLocal shows the search overlay with current dir entries only (instant, no walk).
+func (m *Model) OpenLocal(dir string, names []string) tea.Cmd {
 	m.Visible = true
+	m.recursive = false
+	m.baseDir = dir
+	m.cursor = 0
+	m.loading = false
+	m.input.Reset()
+	allFiles = names
+	m.results = filter("")
+	return m.input.Focus()
+}
+
+// OpenRecursive shows the search overlay with a full recursive walk.
+func (m *Model) OpenRecursive(dir string) tea.Cmd {
+	m.Visible = true
+	m.recursive = true
 	m.baseDir = dir
 	m.results = nil
 	m.cursor = 0
 	m.loading = true
 	m.input.Reset()
+	allFiles = nil
 	return tea.Batch(m.input.Focus(), startWalk(dir))
 }
 

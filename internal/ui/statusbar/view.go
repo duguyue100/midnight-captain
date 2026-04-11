@@ -54,7 +54,7 @@ func (m Model) View(left, right PaneInfo) string {
 		styleHint.Render(hint)
 
 	// Line 2: key hints
-	hints := " j/k navigate · h/l parent/enter · Tab switch · . hidden · q quit"
+	hints := " j/k navigate · h/l expand · o enter dir · a create · Space search · : commands · q quit"
 	hints = truncate(hints, m.Width)
 	line2 := styleHint.Width(m.Width).Render(hints)
 

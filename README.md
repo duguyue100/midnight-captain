@@ -147,13 +147,13 @@ Open with `:`, then type a command name.
 
 | Command | Description |
 |---------|-------------|
-| `/ssh user@host` | Connect to a remote server (SFTP) in the active pane |
-| `/disconnect` | Disconnect SSH, return to local filesystem |
-| `/sort name\|size\|date` | Change sort order |
-| `/hidden` | Toggle hidden files |
-| `/mkdir [name]` | Create a new directory |
-| `/touch [name]` | Create an empty file |
-| `/quit` | Exit |
+| `ssh user@host` | Connect to a remote server (SFTP) in the active pane |
+| `disconnect` | Disconnect SSH, return to local filesystem |
+| `sort name\|size\|date` | Change sort order |
+| `hidden` | Toggle hidden files |
+| `mkdir [name]` | Create a new directory |
+| `touch [name]` | Create an empty file |
+| `quit` | Exit |
 
 ---
 
@@ -162,7 +162,7 @@ Open with `:`, then type a command name.
 Connect to a remote server:
 
 ```
-:  /ssh user@192.168.1.10
+:  ssh user@192.168.1.10
 ```
 
 Authentication is tried in order: SSH agent → key files (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa`) → known hosts verification. The active pane switches to the remote filesystem. All file operations (copy, move, delete, rename) work across local and remote panes.
@@ -170,7 +170,7 @@ Authentication is tried in order: SSH agent → key files (`~/.ssh/id_ed25519`, 
 Disconnect:
 
 ```
-:  /disconnect
+:  disconnect
 ```
 
 ---

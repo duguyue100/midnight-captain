@@ -5,16 +5,16 @@ package pane
 const (
 	keyDown         = "j"
 	keyUp           = "k"
-	keyRight        = "l"
-	keyLeft         = "h"
+	keyRight        = "l" // expand/collapse dir
+	keyLeft         = "h" // collapse or jump to parent node or goParent
+	keyOpenDir      = "o" // navigate into dir (change Cwd)
 	keyBackspace    = "backspace"
-	keyEnter        = "enter"
+	keyEnter        = "enter" // expand/collapse dir (same as l)
 	keyHalfDown     = "ctrl+d"
 	keyHalfUp       = "ctrl+u"
-	keyTop          = "g" // handled as double-g in app layer; pane uses single for now
+	keyTop          = "g"
 	keyBottom       = "G"
 	keyToggleHidden = "."
 	keyVisual       = "V"
-	keySpace        = " "
 	keyEsc          = "esc"
 )

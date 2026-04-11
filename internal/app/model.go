@@ -7,6 +7,8 @@ import (
 	"github.com/dgyhome/midnight-captain/internal/ops"
 	"github.com/dgyhome/midnight-captain/internal/ui/cmdpalette"
 	"github.com/dgyhome/midnight-captain/internal/ui/dialog"
+	goto_ "github.com/dgyhome/midnight-captain/internal/ui/goto"
+	"github.com/dgyhome/midnight-captain/internal/ui/help"
 	"github.com/dgyhome/midnight-captain/internal/ui/pane"
 	"github.com/dgyhome/midnight-captain/internal/ui/search"
 	"github.com/dgyhome/midnight-captain/internal/ui/statusbar"
@@ -29,6 +31,8 @@ type Model struct {
 	Search     search.Model
 	Confirm    dialog.ConfirmModel
 	Input      dialog.InputModel
+	Help       help.Model
+	Goto       goto_.Model
 	Clipboard  ops.Clipboard
 	Focus      FocusPane
 	Width      int
@@ -60,6 +64,8 @@ func NewModel() Model {
 		Search:     search.New(),
 		Confirm:    dialog.NewConfirm("", "", nil),
 		Input:      dialog.NewInput("", "", ""),
+		Help:       help.New(),
+		Goto:       goto_.New(),
 		Focus:      FocusLeft,
 	}
 }
@@ -104,6 +110,8 @@ func (m *Model) propagateSizes() {
 	m.Statusbar.SetSize(m.Width)
 	m.CmdPalette.SetSize(m.Width, m.Height)
 	m.Search.SetSize(m.Width, m.Height)
+	m.Help.SetSize(m.Width, m.Height)
+	m.Goto.SetSize(m.Width, m.Height)
 }
 
 // selectedPaths returns absolute paths of selected (or cursor) entries in ap.
@@ -111,17 +119,17 @@ func selectedPaths(ap *pane.Model) []string {
 	if len(ap.Selected) > 0 {
 		paths := make([]string, 0, len(ap.Selected))
 		for idx := range ap.Selected {
-			if idx < len(ap.Entries) {
-				paths = append(paths, ap.Cwd+"/"+ap.Entries[idx].Name)
+			if idx < len(ap.Nodes) {
+				paths = append(paths, ap.Nodes[idx].FullPath)
 			}
 		}
 		return paths
 	}
-	entry, ok := ap.CurrentEntry()
+	node, ok := ap.CurrentNode()
 	if !ok {
 		return nil
 	}
-	return []string{ap.Cwd + "/" + entry.Name}
+	return []string{node.FullPath}
 }
 
 // selectedNames returns just the names (for dialog display).

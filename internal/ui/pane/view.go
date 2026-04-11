@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/dgyhome/midnight-captain/internal/fs"
 	"github.com/dgyhome/midnight-captain/internal/theme"
+	"github.com/mattn/go-runewidth"
 )
 
 var (
@@ -84,8 +85,8 @@ func (m Model) View() string {
 
 	// File list rows
 	end := m.Offset + visibleRows
-	if end > len(m.Entries) {
-		end = len(m.Entries)
+	if end > len(m.Nodes) {
+		end = len(m.Nodes)
 	}
 
 	rendered := 0
@@ -114,25 +115,46 @@ func (m Model) View() string {
 
 func renderColHeader(width int) string {
 	rightCols := colSizeW + colKindW + colDateW
-	nameW := width - 3 - rightCols // 3 = icon(2)+space(1)
+	nameW := width - 3 - rightCols // 3 = icon(2 cols)+space(1)
 	if nameW < 4 {
 		nameW = 4
 	}
-	name := fmt.Sprintf("%-*s", nameW, "Name")
-	size := fmt.Sprintf("%*s", colSizeW, "Size")
-	kind := fmt.Sprintf("%*s", colKindW, "Kind")
-	date := fmt.Sprintf("%*s", colDateW, "Date")
+	name := padRight("Name", nameW)
+	size := padLeft("Size", colSizeW)
+	kind := padLeft("Kind", colKindW)
+	date := padLeft("Date", colDateW)
 	row := "   " + name + size + kind + date
+	row = colClamp(row, width)
 	return styleMeta.Width(width).Render(row)
 }
 
 func (m Model) renderRow(idx, width int) string {
-	entry := m.Entries[idx]
+	node := m.Nodes[idx]
+	entry := node.Entry
 	isCursor := idx == m.Cursor
 	isSel := m.Selected[idx]
 
+	// Indent: 2 spaces per depth level
+	indent := strings.Repeat("  ", node.Depth)
+	indentW := runewidth.StringWidth(indent)
+
+	// Expand/collapse indicator for dirs (replaces plain icon space)
+	var expandIndicator string
+	if entry.IsDir && entry.Name != ".." {
+		if node.Expanded {
+			expandIndicator = "▼"
+		} else {
+			expandIndicator = "▸"
+		}
+	}
+
 	rightCols := colSizeW + colKindW + colDateW
-	nameW := width - 3 - rightCols // 3 = icon(2)+space(1)
+	// nameW accounts for indent + icon(2) + space(1) + expand indicator(1)
+	iconCols := 2 + 1 // icon width + space
+	if expandIndicator != "" {
+		iconCols += runewidth.StringWidth(expandIndicator)
+	}
+	nameW := width - indentW - iconCols - rightCols
 	if nameW < 4 {
 		nameW = 4
 	}
@@ -142,26 +164,24 @@ func (m Model) renderRow(idx, width int) string {
 	if entry.IsDir && name != ".." {
 		name += "/"
 	}
-	name = truncate(name, nameW)
-	namePadded := fmt.Sprintf("%-*s", nameW, name)
+	name = truncateCols(name, nameW)
+	namePadded := padRight(name, nameW)
 
 	size := formatSize(entry)
 	kind := formatKind(entry)
 	date := formatDate(entry.ModTime)
 
-	sizeCol := fmt.Sprintf("%*s", colSizeW, size)
-	kindCol := fmt.Sprintf("%*s", colKindW, kind)
-	dateCol := fmt.Sprintf("%*s", colDateW, date)
+	sizeCol := padLeft(size, colSizeW)
+	kindCol := padLeft(kind, colKindW)
+	dateCol := padLeft(date, colDateW)
 
-	row := icon + " " + namePadded + sizeCol + kindCol + dateCol
-
-	// Hard clamp
-	runes := []rune(row)
-	if len(runes) > width {
-		row = string(runes[:width])
-	} else if len(runes) < width {
-		row += strings.Repeat(" ", width-len(runes))
+	var row string
+	if expandIndicator != "" {
+		row = indent + expandIndicator + icon + " " + namePadded + sizeCol + kindCol + dateCol
+	} else {
+		row = indent + icon + " " + namePadded + sizeCol + kindCol + dateCol
 	}
+	row = colClamp(row, width)
 
 	return colorRow(row, entry, isCursor, isSel)
 }
@@ -413,16 +433,74 @@ func formatDate(t time.Time) string {
 	return t.Format("2006  ")
 }
 
-func truncate(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	runes := []rune(s)
-	if len(runes) <= max {
+// colWidth returns the terminal display width of s (accounts for double-wide chars).
+func colWidth(s string) int {
+	return runewidth.StringWidth(s)
+}
+
+// padRight pads s to exactly w terminal columns (right-padding with spaces).
+func padRight(s string, w int) string {
+	cw := colWidth(s)
+	if cw >= w {
 		return s
 	}
-	if max <= 3 {
-		return string(runes[:max])
+	return s + strings.Repeat(" ", w-cw)
+}
+
+// padLeft pads s to exactly w terminal columns (left-padding with spaces).
+func padLeft(s string, w int) string {
+	cw := colWidth(s)
+	if cw >= w {
+		return s
 	}
-	return string(runes[:max-1]) + "…"
+	return strings.Repeat(" ", w-cw) + s
+}
+
+// colClamp hard-clamps s to w terminal columns, padding or truncating as needed.
+func colClamp(s string, w int) string {
+	cw := colWidth(s)
+	if cw == w {
+		return s
+	}
+	if cw < w {
+		return s + strings.Repeat(" ", w-cw)
+	}
+	// Truncate: walk runes until we hit w cols
+	total := 0
+	for i, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if total+rw > w {
+			return s[:i] + strings.Repeat(" ", w-total)
+		}
+		total += rw
+	}
+	return s
+}
+
+// truncateCols truncates s to at most w terminal columns, adding "…" if cut.
+func truncateCols(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	if colWidth(s) <= w {
+		return s
+	}
+	if w <= 1 {
+		return "…"
+	}
+	// Build truncated string fitting w-1 cols, then append "…"
+	total := 0
+	for i, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if total+rw > w-1 {
+			return s[:i] + "…"
+		}
+		total += rw
+	}
+	return s
+}
+
+// truncate is kept for non-column uses (cwd header, etc.)
+func truncate(s string, max int) string {
+	return truncateCols(s, max)
 }

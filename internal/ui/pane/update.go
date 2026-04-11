@@ -26,8 +26,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, keyDown):
 		m.Cursor++
-		if m.Cursor >= len(m.Entries) {
-			m.Cursor = max(0, len(m.Entries)-1)
+		if m.Cursor >= len(m.Nodes) {
+			m.Cursor = max(0, len(m.Nodes)-1)
 		}
 		m.clampOffset()
 		if m.VisualMode {
@@ -46,8 +46,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case keyMatches(msg, keyHalfDown):
 		m.Cursor += m.visibleHeight() / 2
-		if m.Cursor >= len(m.Entries) {
-			m.Cursor = max(0, len(m.Entries)-1)
+		if m.Cursor >= len(m.Nodes) {
+			m.Cursor = max(0, len(m.Nodes)-1)
 		}
 		m.clampOffset()
 		if m.VisualMode {
@@ -72,17 +72,25 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 
 	case keyMatches(msg, keyBottom):
-		m.Cursor = max(0, len(m.Entries)-1)
+		m.Cursor = max(0, len(m.Nodes)-1)
 		m.clampOffset()
 		if m.VisualMode {
 			m.extendVisualSelection()
 		}
 
 	case keyMatches(msg, keyEnter), keyMatches(msg, keyRight):
+		// expand/collapse dir, or no-op on file
+		return m.handleExpandOrFile()
+
+	case keyMatches(msg, keyOpenDir):
+		// navigate into dir (change Cwd)
 		return m.enterCurrent()
 
 	case keyMatches(msg, keyLeft), keyMatches(msg, keyBackspace):
-		return m.goParent()
+		// collapse expanded dir, jump to parent node, or goParent if at top
+		if !m.collapseAtCursor() {
+			return m.goParent()
+		}
 
 	case keyMatches(msg, keyToggleHidden):
 		m.ShowHidden = !m.ShowHidden
@@ -95,14 +103,6 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 			m.Selected[m.Cursor] = true
 		}
 
-	case keyMatches(msg, keySpace):
-		m.Selected[m.Cursor] = !m.Selected[m.Cursor]
-		m.Cursor++
-		if m.Cursor >= len(m.Entries) {
-			m.Cursor = max(0, len(m.Entries)-1)
-		}
-		m.clampOffset()
-
 	case keyMatches(msg, keyEsc):
 		m.VisualMode = false
 		m.Selected = make(map[int]bool)
@@ -110,31 +110,38 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// extendVisualSelection selects all entries between VisualAnchor and Cursor.
-func (m *Model) extendVisualSelection() {
-	m.Selected = make(map[int]bool)
-	lo, hi := m.VisualAnchor, m.Cursor
-	if lo > hi {
-		lo, hi = hi, lo
-	}
-	for i := lo; i <= hi; i++ {
-		m.Selected[i] = true
-	}
-}
-
-func (m Model) enterCurrent() (Model, tea.Cmd) {
-	entry, ok := m.CurrentEntry()
+// handleExpandOrFile: dirs toggle expand, files do nothing (app layer handles 'e' to open).
+func (m Model) handleExpandOrFile() (Model, tea.Cmd) {
+	node, ok := m.CurrentNode()
 	if !ok {
 		return m, nil
 	}
-	if entry.Name == ".." {
+	if node.Entry.Name == ".." {
 		return m.goParent()
 	}
-	if entry.IsDir {
-		m.Cwd = m.Cwd + "/" + entry.Name
+	if node.Entry.IsDir {
+		m.toggleExpand(m.Cursor)
+		return m, nil
+	}
+	// file — no action here; 'e' handled at app layer
+	return m, nil
+}
+
+// enterCurrent navigates INTO the dir under cursor (changes Cwd).
+func (m Model) enterCurrent() (Model, tea.Cmd) {
+	node, ok := m.CurrentNode()
+	if !ok {
+		return m, nil
+	}
+	if node.Entry.Name == ".." {
+		return m.goParent()
+	}
+	if node.Entry.IsDir {
+		m.Cwd = node.FullPath
 		m.Cursor = 0
 		m.Offset = 0
 		m.Selected = make(map[int]bool)
+		m.expandState = make(map[string]bool) // reset expand state on Cwd change
 		m.Reload()
 	}
 	return m, nil
@@ -149,9 +156,10 @@ func (m Model) goParent() (Model, tea.Cmd) {
 	m.Cursor = 0
 	m.Offset = 0
 	m.Selected = make(map[int]bool)
+	m.expandState = make(map[string]bool)
 	m.Reload()
-	for i, e := range m.Entries {
-		if e.Name == lastName {
+	for i, n := range m.Nodes {
+		if n.Entry.Name == lastName && n.Depth == 0 {
 			m.Cursor = i
 			m.clampOffset()
 			break
@@ -160,15 +168,28 @@ func (m Model) goParent() (Model, tea.Cmd) {
 	return m, nil
 }
 
+// extendVisualSelection selects all nodes between VisualAnchor and Cursor.
+func (m *Model) extendVisualSelection() {
+	m.Selected = make(map[int]bool)
+	lo, hi := m.VisualAnchor, m.Cursor
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	for i := lo; i <= hi; i++ {
+		m.Selected[i] = true
+	}
+}
+
 // NavigateTo navigates the pane to dir and positions cursor on the named file.
 func (m *Model) NavigateTo(dir, name string) {
 	m.Cwd = dir
 	m.Cursor = 0
 	m.Offset = 0
 	m.Selected = make(map[int]bool)
+	m.expandState = make(map[string]bool)
 	m.Reload()
-	for i, e := range m.Entries {
-		if e.Name == name {
+	for i, n := range m.Nodes {
+		if n.Entry.Name == name {
 			m.Cursor = i
 			m.clampOffset()
 			break

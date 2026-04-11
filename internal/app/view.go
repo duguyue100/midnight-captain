@@ -5,7 +5,9 @@ import (
 
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dgyhome/midnight-captain/internal/theme"
+	"github.com/mattn/go-runewidth"
 )
 
 var styleRoot = lipgloss.NewStyle().Background(theme.BG)
@@ -26,28 +28,23 @@ func (m Model) renderContent() string {
 
 	base := m.renderBase()
 
-	// Overlay palette if visible
 	if m.CmdPalette.Visible {
-		overlay := m.CmdPalette.View()
-		base = placeOverlay(base, overlay, m.Width, m.Height)
+		base = placeOverlay(base, m.CmdPalette.View(), m.Width, m.Height)
 	}
-
-	// Overlay search if visible
 	if m.Search.Visible {
-		overlay := m.Search.View()
-		base = placeOverlay(base, overlay, m.Width, m.Height)
+		base = placeOverlay(base, m.Search.View(), m.Width, m.Height)
 	}
-
-	// Overlay confirm dialog if visible
 	if m.Confirm.Visible {
-		overlay := m.Confirm.View()
-		base = placeOverlay(base, overlay, m.Width, m.Height)
+		base = placeOverlay(base, m.Confirm.View(), m.Width, m.Height)
 	}
-
-	// Overlay input dialog if visible
 	if m.Input.Visible {
-		overlay := m.Input.View()
-		base = placeOverlay(base, overlay, m.Width, m.Height)
+		base = placeOverlay(base, m.Input.View(), m.Width, m.Height)
+	}
+	if m.Help.Visible {
+		base = placeOverlay(base, m.Help.View(), m.Width, m.Height)
+	}
+	if m.Goto.Visible {
+		base = placeOverlay(base, m.Goto.View(), m.Width, m.Height)
 	}
 
 	return base
@@ -55,6 +52,8 @@ func (m Model) renderContent() string {
 
 func (m Model) renderBase() string {
 	dual := m.Width >= 80
+	sbHeight := 2
+	paneHeight := m.Height - sbHeight
 
 	var sb strings.Builder
 
@@ -69,16 +68,22 @@ func (m Model) renderBase() string {
 		leftLines := strings.Split(leftView, "\n")
 		rightLines := strings.Split(rightView, "\n")
 
-		maxLines := max(len(leftLines), len(rightLines))
-		for i := 0; i < maxLines; i++ {
+		leftLines = clampLines(leftLines, paneHeight)
+		rightLines = clampLines(rightLines, paneHeight)
+
+		for i := 0; i < paneHeight; i++ {
 			l := lineAt(leftLines, i, m.Left.Width)
 			r := lineAt(rightLines, i, m.Right.Width)
 			sb.WriteString(l + divider + r + "\n")
 		}
 	} else {
 		ap := m.activePane()
-		sb.WriteString(ap.View())
-		sb.WriteByte('\n')
+		lines := strings.Split(ap.View(), "\n")
+		lines = clampLines(lines, paneHeight)
+		for i := 0; i < paneHeight; i++ {
+			sb.WriteString(lineAt(lines, i, m.Width))
+			sb.WriteByte('\n')
+		}
 	}
 
 	sb.WriteString(m.Statusbar.View(&m.Left, &m.Right))
@@ -86,33 +91,52 @@ func (m Model) renderBase() string {
 	return sb.String()
 }
 
-// placeOverlay centers the overlay string on top of the base string.
-// Uses lipgloss.Place to position, then overlays line-by-line.
+// placeOverlay merges overlay into base by splicing each overlay line into the
+// corresponding base line using ANSI-aware Cut/Truncate so base colors are preserved.
 func placeOverlay(base, overlay string, w, h int) string {
-	// Use lipgloss Place to get the overlay positioned on a blank canvas
-	placed := lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, overlay)
-
+	overlayLines := strings.Split(overlay, "\n")
 	baseLines := strings.Split(base, "\n")
-	overlayLines := strings.Split(placed, "\n")
 
-	out := make([]string, max(len(baseLines), len(overlayLines)))
-	for i := range out {
-		bl := ""
-		if i < len(baseLines) {
-			bl = baseLines[i]
-		}
-		ol := ""
-		if i < len(overlayLines) {
-			ol = overlayLines[i]
-		}
-		// Overlay line wins if it contains non-space content
-		if strings.TrimSpace(ol) != "" {
-			out[i] = ol
-		} else {
-			out[i] = bl
+	// Measure overlay visual width (widest line, stripped of ANSI)
+	overlayH := len(overlayLines)
+	overlayW := 0
+	for _, l := range overlayLines {
+		ww := runewidth.StringWidth(ansi.Strip(l))
+		if ww > overlayW {
+			overlayW = ww
 		}
 	}
-	return strings.Join(out, "\n")
+
+	// Center position (0-indexed into baseLines)
+	startRow := (h - overlayH) / 2
+	startCol := (w - overlayW) / 2
+	if startRow < 0 {
+		startRow = 0
+	}
+	if startCol < 0 {
+		startCol = 0
+	}
+
+	for i, ol := range overlayLines {
+		row := startRow + i
+		if row >= len(baseLines) {
+			break
+		}
+		bl := baseLines[row]
+		// Splice: left portion of base | overlay line | right portion of base
+		left := ansi.Truncate(bl, startCol, "")
+		right := ansi.TruncateLeft(bl, startCol+overlayW, "")
+		baseLines[row] = left + ol + right
+	}
+
+	return strings.Join(baseLines, "\n")
+}
+
+func clampLines(lines []string, max int) []string {
+	if len(lines) <= max {
+		return lines
+	}
+	return lines[:max]
 }
 
 func lineAt(lines []string, i, width int) string {

@@ -29,6 +29,7 @@ func NewInput(id, title, initial string) InputModel {
 	ti := textinput.New()
 	ti.CharLimit = 255
 	ti.SetValue(initial)
+	ti.SetWidth(52)
 	return InputModel{ID: id, Title: title, input: ti}
 }
 
@@ -91,15 +92,17 @@ func (m InputModel) View() string {
 		return ""
 	}
 
-	const innerW = 44
+	const (
+		inputW = 52         // matches ti.SetWidth
+		fieldW = inputW + 4 // field border(2) + padding(2)
+		boxW   = fieldW + 6 // box border(2) + padding(2×2)
+	)
 	var sb strings.Builder
 
-	sb.WriteString(inputTitle.Width(innerW).Render(m.Title))
+	sb.WriteString(inputTitle.Width(fieldW).Render(m.Title))
 	sb.WriteByte('\n')
 	sb.WriteByte('\n')
+	sb.WriteString(inputField.Width(fieldW).Render(m.input.View()))
 
-	inputView := m.input.View()
-	sb.WriteString(inputField.Width(innerW).Render(inputView))
-
-	return inputBox.Width(innerW + 4).Render(sb.String())
+	return inputBox.Width(boxW).Render(sb.String())
 }

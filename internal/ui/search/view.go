@@ -32,15 +32,18 @@ var (
 				Background(theme.BGHighlight).
 				Bold(true)
 
-	searchLoading = lipgloss.NewStyle().
+	searchEmpty = lipgloss.NewStyle().
 			Foreground(theme.Comment).
 			Background(theme.BGFloat).
 			Italic(true)
 )
 
-const searchW = 70
+const (
+	searchW       = 70
+	searchMaxRows = 12 // fixed result rows — never changes height
+)
 
-// View renders the search overlay or "".
+// View renders the search overlay with fixed dimensions.
 func (m Model) View() string {
 	if !m.Visible {
 		return ""
@@ -49,40 +52,46 @@ func (m Model) View() string {
 	innerW := searchW - 4 // border(2) + padding(2)
 	var sb strings.Builder
 
-	// Input line
-	sb.WriteString(searchInput.Width(innerW).Render(m.input.View()))
+	// Input line with mode label
+	label := "search  "
+	if m.recursive {
+		label = "find    "
+	}
+	inputLine := fmt.Sprintf("%s%s", label, m.input.View())
+	sb.WriteString(searchInput.Width(innerW).Render(inputLine))
 	sb.WriteByte('\n')
 	sb.WriteString(searchDivider.Width(innerW).Render(strings.Repeat("─", innerW)))
 
+	blank := searchEmpty.Width(innerW).Render("")
+
 	if m.loading {
 		sb.WriteByte('\n')
-		sb.WriteString(searchLoading.Width(innerW).Render("  scanning…"))
+		sb.WriteString(searchEmpty.Width(innerW).Render("  scanning…"))
+		// pad remaining rows
+		for i := 1; i < searchMaxRows; i++ {
+			sb.WriteByte('\n')
+			sb.WriteString(blank)
+		}
 	} else {
-		limit := len(m.results)
-		maxRows := m.Height/2 - 4
-		if maxRows < 5 {
-			maxRows = 5
-		}
-		if limit > maxRows {
-			limit = maxRows
-		}
-		for i := 0; i < limit; i++ {
-			r := m.results[i]
-			line := fmt.Sprintf("  %s", r.Path)
-			runes := []rune(line)
-			if len(runes) > innerW {
-				line = "  …" + string(runes[len(runes)-(innerW-3):])
-			}
+		for i := 0; i < searchMaxRows; i++ {
 			sb.WriteByte('\n')
-			if i == m.cursor {
-				sb.WriteString(searchResultActive.Width(innerW).Render(line))
+			if i < len(m.results) {
+				r := m.results[i]
+				line := fmt.Sprintf("  %s", r.Path)
+				runes := []rune(line)
+				if len(runes) > innerW {
+					line = "  …" + string(runes[len(runes)-(innerW-3):])
+				}
+				if i == m.cursor {
+					sb.WriteString(searchResultActive.Width(innerW).Render(line))
+				} else {
+					sb.WriteString(searchResult.Width(innerW).Render(line))
+				}
+			} else if i == 0 && len(m.results) == 0 {
+				sb.WriteString(searchEmpty.Width(innerW).Render("  no results"))
 			} else {
-				sb.WriteString(searchResult.Width(innerW).Render(line))
+				sb.WriteString(blank)
 			}
-		}
-		if len(m.results) == 0 && !m.loading {
-			sb.WriteByte('\n')
-			sb.WriteString(searchLoading.Width(innerW).Render("  no results"))
 		}
 	}
 

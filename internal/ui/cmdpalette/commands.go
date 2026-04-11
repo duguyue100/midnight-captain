@@ -11,7 +11,7 @@ type ExecuteMsg struct {
 func builtinCommands() []Command {
 	return []Command{
 		{
-			Name:        "/sort",
+			Name:        "sort",
 			Description: "Sort by: name | size | date",
 			Action: func(args []string) tea.Cmd {
 				arg := ""
@@ -19,69 +19,91 @@ func builtinCommands() []Command {
 					arg = args[0]
 				}
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/sort", Args: []string{arg}}
+					return ExecuteMsg{Name: "sort", Args: []string{arg}}
 				}
 			},
 		},
 		{
-			Name:        "/hidden",
+			Name:        "hidden",
 			Description: "Toggle hidden files",
 			Action: func(args []string) tea.Cmd {
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/hidden"}
+					return ExecuteMsg{Name: "hidden"}
 				}
 			},
 		},
 		{
-			Name:        "/mkdir",
-			Description: "Create directory: /mkdir <name>",
+			Name:        "mkdir",
+			Description: "Create directory: mkdir <name>",
 			Action: func(args []string) tea.Cmd {
 				arg := ""
 				if len(args) > 0 {
 					arg = args[0]
 				}
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/mkdir", Args: []string{arg}}
+					return ExecuteMsg{Name: "mkdir", Args: []string{arg}}
 				}
 			},
 		},
 		{
-			Name:        "/touch",
-			Description: "Create empty file: /touch <name>",
+			Name:        "touch",
+			Description: "Create empty file: touch <name>",
 			Action: func(args []string) tea.Cmd {
 				arg := ""
 				if len(args) > 0 {
 					arg = args[0]
 				}
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/touch", Args: []string{arg}}
+					return ExecuteMsg{Name: "touch", Args: []string{arg}}
 				}
 			},
 		},
 		{
-			Name:        "/ssh",
-			Description: "Connect SSH: /ssh user@host",
+			Name:        "ssh",
+			Description: "Connect SSH: ssh user@host",
 			Action: func(args []string) tea.Cmd {
 				arg := ""
 				if len(args) > 0 {
 					arg = args[0]
 				}
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/ssh", Args: []string{arg}}
+					return ExecuteMsg{Name: "ssh", Args: []string{arg}}
 				}
 			},
 		},
 		{
-			Name:        "/disconnect",
+			Name:        "disconnect",
 			Description: "Disconnect SSH on active pane",
 			Action: func(args []string) tea.Cmd {
 				return func() tea.Msg {
-					return ExecuteMsg{Name: "/disconnect"}
+					return ExecuteMsg{Name: "disconnect"}
 				}
 			},
 		},
 		{
-			Name:        "/quit",
+			Name:        "goto",
+			Description: "Go to path: goto <path>",
+			Action: func(args []string) tea.Cmd {
+				arg := ""
+				if len(args) > 0 {
+					arg = args[0]
+				}
+				return func() tea.Msg {
+					return ExecuteMsg{Name: "goto", Args: []string{arg}}
+				}
+			},
+		},
+		{
+			Name:        "find",
+			Description: "Recursive fuzzy search from current dir",
+			Action: func(args []string) tea.Cmd {
+				return func() tea.Msg {
+					return ExecuteMsg{Name: "find"}
+				}
+			},
+		},
+		{
+			Name:        "quit",
 			Description: "Exit midnight-captain",
 			Action: func(args []string) tea.Cmd {
 				return tea.Quit
