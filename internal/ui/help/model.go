@@ -5,6 +5,7 @@ type Model struct {
 	Visible bool
 	Width   int
 	Height  int
+	Version string
 }
 
 // New returns a closed help overlay.

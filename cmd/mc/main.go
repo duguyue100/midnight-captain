@@ -11,7 +11,7 @@ import (
 var version = "dev"
 
 func main() {
-	m := app.NewModel()
+	m := app.NewModel(version)
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

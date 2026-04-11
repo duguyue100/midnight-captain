@@ -43,7 +43,7 @@ type Model struct {
 }
 
 // NewModel creates the initial app state.
-func NewModel() Model {
+func NewModel(version string) Model {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "/"
@@ -64,7 +64,7 @@ func NewModel() Model {
 		Search:     search.New(),
 		Confirm:    dialog.NewConfirm("", "", nil),
 		Input:      dialog.NewInput("", "", ""),
-		Help:       help.New(),
+		Help:       help.Model{Version: version},
 		Goto:       goto_.New(),
 		Focus:      FocusLeft,
 	}
