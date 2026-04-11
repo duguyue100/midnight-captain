@@ -28,27 +28,31 @@
 
 ## Installation
 
-### Build from source
+### One-liner (macOS and Linux)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/duguyue100/midnight-captain/main/install.sh | bash
+```
+
+Downloads the correct pre-built binary for your OS and architecture from the latest GitHub Release and places it at `~/.local/bin/mc`. If `~/.local/bin` is not in your `$PATH`, the installer will tell you what to add.
+
+### Build from source (local)
 
 Requires [Go 1.22+](https://go.dev/dl/).
 
 ```sh
 git clone https://github.com/duguyue100/midnight-captain
 cd midnight-captain
-make install        # builds and copies mc to ~/.local/bin/mc
+./install.sh --local-build
 ```
 
-Or build without installing:
+Runs `make build` and copies `bin/mc` to `~/.local/bin/mc`.
+
+### Manual build
 
 ```sh
-make build          # binary at bin/mc
+make build   # binary at bin/mc
 ./bin/mc
-```
-
-Ensure `~/.local/bin` is on your `$PATH`:
-
-```sh
-export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ---
