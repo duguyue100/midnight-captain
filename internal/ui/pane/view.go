@@ -138,28 +138,32 @@ func (m Model) renderRow(idx, width int) string {
 	indent := strings.Repeat("  ", node.Depth)
 	indentW := runewidth.StringWidth(indent)
 
-	// Expand/collapse indicator for dirs (replaces plain icon space)
-	var expandIndicator string
+	rightCols := colSizeW + colKindW + colDateW
+
+	// Icon slot: nerdIcon returns glyph+space = 2 terminal cols.
+	// Dirs (non-..) prepend ▸/▼ indicator (1 col) → total 3 cols before name.
+	// Others: just icon (2 cols) before name.
+	var iconStr string
+	var iconSlotW int
 	if entry.IsDir && entry.Name != ".." {
+		indicator := "▸"
+		icon := iconFolder
 		if node.Expanded {
-			expandIndicator = "▼"
-		} else {
-			expandIndicator = "▸"
+			indicator = "▼"
+			icon = iconFolderOpen
 		}
+		iconStr = indicator + icon // 1 + 2 = 3 cols
+		iconSlotW = 3
+	} else {
+		iconStr = nerdIcon(entry) // 2 cols (glyph+space)
+		iconSlotW = 2
 	}
 
-	rightCols := colSizeW + colKindW + colDateW
-	// nameW accounts for indent + icon(2) + space(1) + expand indicator(1)
-	iconCols := 2 + 1 // icon width + space
-	if expandIndicator != "" {
-		iconCols += runewidth.StringWidth(expandIndicator)
-	}
-	nameW := width - indentW - iconCols - rightCols
+	nameW := width - indentW - iconSlotW - rightCols
 	if nameW < 4 {
 		nameW = 4
 	}
 
-	icon := nerdIcon(entry)
 	name := entry.Name
 	if entry.IsDir && name != ".." {
 		name += "/"
@@ -175,12 +179,7 @@ func (m Model) renderRow(idx, width int) string {
 	kindCol := padLeft(kind, colKindW)
 	dateCol := padLeft(date, colDateW)
 
-	var row string
-	if expandIndicator != "" {
-		row = indent + expandIndicator + icon + " " + namePadded + sizeCol + kindCol + dateCol
-	} else {
-		row = indent + icon + " " + namePadded + sizeCol + kindCol + dateCol
-	}
+	row := indent + iconStr + namePadded + sizeCol + kindCol + dateCol
 	row = colClamp(row, width)
 
 	return colorRow(row, entry, isCursor, isSel)
@@ -209,99 +208,145 @@ func colorRow(row string, entry fs.FileEntry, isCursor, isSel bool) string {
 	}
 }
 
-// nerdIcon returns a 2-char wide nerd font icon for the entry.
-// Falls back to ASCII if terminal doesn't support nerd fonts.
+// Nerd font icons as explicit Unicode codepoints (NF v3 / cod range).
+// All are private-use area glyphs rendered 2 terminal columns wide by nerd-patched fonts.
+const (
+	iconParent     = "\uf07c " // nf-fa-folder_open  ..
+	iconLink       = "\uf0c1 " // nf-fa-link
+	iconFolder     = "\uf07b " // nf-fa-folder (closed)
+	iconFolderOpen = "\uf07c " // nf-fa-folder_open (expanded)
+	iconGo         = "\ue627 " // nf-dev-go
+	iconRust       = "\ue7a8 " // nf-dev-rust
+	iconPython     = "\ue606 " // nf-dev-python
+	iconJS         = "\ue74e " // nf-dev-javascript
+	iconTS         = "\ue628 " // nf-dev-typescript
+	iconReact      = "\ue7ba " // nf-dev-react
+	iconHTML       = "\ue736 " // nf-dev-html5
+	iconCSS        = "\ue749 " // nf-dev-css3
+	iconJSON       = "\ue60b " // nf-dev-javascript (reuse)
+	iconYAML       = "\ue6d5 " // nf-dev-code (yaml)
+	iconTOML       = "\ue6b2 " // nf-custom-toml
+	iconMarkdown   = "\ue73e " // nf-dev-markdown
+	iconText       = "\uf15c " // nf-fa-file_text
+	iconShell      = "\uf489 " // nf-dev-terminal
+	iconVim        = "\ue62b " // nf-dev-vim
+	iconC          = "\ue61e " // nf-dev-c
+	iconCpp        = "\ue61d " // nf-dev-cplusplus
+	iconJava       = "\ue738 " // nf-dev-java
+	iconRuby       = "\ue739 " // nf-dev-ruby
+	iconPHP        = "\ue73d " // nf-dev-php
+	iconSwift      = "\ue755 " // nf-dev-swift
+	iconKotlin     = "\ue70e " // nf-dev-kotlin
+	iconPDF        = "\uf1c1 " // nf-fa-file_pdf
+	iconImage      = "\uf1c5 " // nf-fa-file_image
+	iconVideo      = "\uf03d " // nf-fa-film
+	iconAudio      = "\uf001 " // nf-fa-music
+	iconArchive    = "\uf410 " // nf-oct-package
+	iconPackage    = "\uf187 " // nf-fa-archive
+	iconLock       = "\uf023 " // nf-fa-lock
+	iconConfig     = "\ue615 " // nf-dev-aptana (config)
+	iconGit        = "\ue702 " // nf-dev-git
+	iconDocker     = "\ue7b0 " // nf-dev-docker
+	iconMakefile   = "\uf0ad " // nf-fa-wrench
+	iconSQL        = "\uf1c0 " // nf-fa-database
+	iconDB         = "\uf1c0 " // nf-fa-database
+	iconKey        = "\uf084 " // nf-fa-key
+	iconExec       = "\uf489 " // nf-dev-terminal
+	iconFile       = "\uf15b " // nf-fa-file
+)
+
+// nerdIcon returns a nerd font icon string (glyph + space = 2 terminal cols) for the entry.
 func nerdIcon(e fs.FileEntry) string {
 	if e.Name == ".." {
-		return " "
+		return iconParent
 	}
 	if e.IsLink {
-		return " "
+		return iconLink
 	}
 	if e.IsDir {
-		return " "
+		return iconFolder
 	}
 	// File type by extension
 	ext := fileExt(e.Name)
 	switch ext {
 	case "go":
-		return " "
+		return iconGo
 	case "rs":
-		return " "
+		return iconRust
 	case "py":
-		return " "
+		return iconPython
 	case "js", "mjs", "cjs":
-		return " "
-	case "ts", "tsx":
-		return " "
-	case "jsx":
-		return " "
+		return iconJS
+	case "ts":
+		return iconTS
+	case "tsx", "jsx":
+		return iconReact
 	case "html", "htm":
-		return " "
+		return iconHTML
 	case "css", "scss", "sass":
-		return " "
+		return iconCSS
 	case "json":
-		return " "
+		return iconJSON
 	case "yaml", "yml":
-		return " "
+		return iconYAML
 	case "toml":
-		return " "
+		return iconTOML
 	case "md", "markdown":
-		return " "
+		return iconMarkdown
 	case "txt":
-		return " "
+		return iconText
 	case "sh", "bash", "zsh", "fish":
-		return " "
+		return iconShell
 	case "vim", "lua":
-		return " "
+		return iconVim
 	case "c", "h":
-		return " "
+		return iconC
 	case "cpp", "cc", "cxx", "hpp":
-		return " "
+		return iconCpp
 	case "java":
-		return " "
+		return iconJava
 	case "rb":
-		return " "
+		return iconRuby
 	case "php":
-		return " "
+		return iconPHP
 	case "swift":
-		return " "
+		return iconSwift
 	case "kt":
-		return " "
+		return iconKotlin
 	case "pdf":
-		return " "
+		return iconPDF
 	case "png", "jpg", "jpeg", "gif", "svg", "webp", "ico":
-		return " "
+		return iconImage
 	case "mp4", "mkv", "avi", "mov", "webm":
-		return " "
+		return iconVideo
 	case "mp3", "flac", "wav", "ogg", "m4a":
-		return " "
+		return iconAudio
 	case "zip", "tar", "gz", "bz2", "xz", "7z", "rar":
-		return " "
+		return iconArchive
 	case "deb", "rpm", "pkg", "dmg", "exe", "msi":
-		return " "
+		return iconPackage
 	case "lock":
-		return " "
+		return iconLock
 	case "env", "cfg", "conf", "ini":
-		return " "
+		return iconConfig
 	case "git":
-		return " "
+		return iconGit
 	case "dockerfile":
-		return " "
+		return iconDocker
 	case "makefile":
-		return " "
+		return iconMakefile
 	case "sql":
-		return " "
+		return iconSQL
 	case "db", "sqlite", "sqlite3":
-		return " "
+		return iconDB
 	case "key", "pem", "crt", "cer":
-		return " "
+		return iconKey
 	}
 	// Executable (no extension but +x)
 	if e.Mode&0o111 != 0 {
-		return " "
+		return iconExec
 	}
-	return " "
+	return iconFile
 }
 
 func fileExt(name string) string {
