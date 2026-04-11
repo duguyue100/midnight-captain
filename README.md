@@ -2,6 +2,17 @@
 
 ---
 
+## Preamble
+
+[Midnight Commander](https://midnight-commander.org/) has always been my favorite terminal file manager.
+It's feature-rich, fast, and actually tries to be a file manager compared to modern alternatives.
+However, there are quite some features that I never used, and I couldn't configure a Vim bindings that works well for me.
+
+With OpenCode, I can finally make my own terminal file manager.
+I borrowed the main design concepts from Midnight Commander and some behavior from NVim-Tree file explorer.
+
+I hope you would like it, at least I do. Since this project is entirely vibe-coded, so I'm not going to accept PR from the community, but feel free to open issues and fork it.
+
 ## Features
 
 - **Dual pane** — navigate two directories side by side, copy/move between them
@@ -130,28 +141,3 @@ Open with `:`, then type a command.
 | `:sort name\|size\|date` | Change sort order |
 | `:hidden` | Toggle hidden files |
 | `:quit` | Exit |
-
----
-
-## SSH
-
-Connect to a remote server:
-
-```
-:ssh user@192.168.1.10
-```
-
-Auth order: SSH agent → key files (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa`) → password prompt.
-The active pane switches to the remote filesystem. File operations work across local↔remote panes.
-
-Disconnect:
-
-```
-:disconnect
-```
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
