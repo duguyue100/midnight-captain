@@ -17,6 +17,10 @@
 - **Nerd font icons** — file type icons, open/closed folder glyphs
 - **TokyoNight theme** — easy on the eyes
 
+## Screenshot
+
+<img width="1709" height="1042" alt="image" src="https://github.com/user-attachments/assets/148a50d7-6b43-4a41-9dc1-99f1c63504e6" />
+
 ---
 
 ## Requirements
