@@ -96,7 +96,7 @@ local_build() {
   cp "${src}" "${INSTALL_DIR}/${BINARY_NAME}"
   chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
-  success "Installed $(${INSTALL_DIR}/${BINARY_NAME} --version 2>/dev/null || echo 'mc') → ${INSTALL_DIR}/${BINARY_NAME}"
+  success "Installed midnight-captain → ${INSTALL_DIR}/${BINARY_NAME}"
   check_path
 }
 
