@@ -13,10 +13,28 @@ var (
 			Background(theme.BGDark).
 			Foreground(theme.FGDark)
 
+	styleAccent = lipgloss.NewStyle().
+			Background(theme.BGDark).
+			Foreground(theme.Blue)
+
+	styleSep = lipgloss.NewStyle().
+			Background(theme.BGDark).
+			Foreground(theme.FGGutter)
+
 	styleHint = lipgloss.NewStyle().
 			Background(theme.BGDark).
 			Foreground(theme.Comment)
+
+	styleMsg = lipgloss.NewStyle().
+			Background(theme.BGDark).
+			Foreground(theme.Yellow)
+
+	styleSpinner = lipgloss.NewStyle().
+			Background(theme.BGDark).
+			Foreground(theme.Cyan)
 )
+
+const sep = " | "
 
 // PaneInfo abstracts pane data needed by statusbar.
 type PaneInfo interface {
@@ -25,40 +43,53 @@ type PaneInfo interface {
 	GetCwd() string
 }
 
-// View renders the status bar (2 lines).
+// View renders the status bar (1 line).
+// Layout: [count] [| spinner pct%] [| message]      [tab | ? | q]
 func (m Model) View(left, right PaneInfo) string {
 	if m.Width == 0 {
 		return ""
 	}
 
-	// Line 1: info
+	// --- Left section: item count + optional selection ---
+	count := left.EntryCount()
 	sel := left.SelectedCount()
-	selStr := ""
+
+	countStr := fmt.Sprintf(" %d items", count)
 	if sel > 0 {
-		selStr = fmt.Sprintf(" · %d selected", sel)
+		countStr += fmt.Sprintf(" (%d selected)", sel)
 	}
-	leftInfo := fmt.Sprintf(" %d items%s", left.EntryCount(), selStr)
+	left_ := styleAccent.Render(countStr)
 
-	hint := " Tab · : · q "
-	if m.Message != "" {
-		hint = " " + m.Message + " "
+	// --- Middle section: spinner+pct OR message ---
+	middle := ""
+	if m.Active {
+		spin := styleSpinner.Render(m.SpinnerFrame())
+		pct := styleBar.Render(fmt.Sprintf(" %d%%", m.Pct))
+		middle = styleSep.Render(sep) + spin + pct
+	} else if m.Message != "" {
+		middle = styleSep.Render(sep) + styleMsg.Render(m.Message)
 	}
 
-	gap := m.Width - len(leftInfo) - len(hint)
-	if gap < 0 {
-		gap = 0
+	// --- Right section: key hints ---
+	right_ := styleHint.Render("tab | ? | q ")
+
+	// Measure plain widths for gap calculation
+	leftW := len([]rune(countStr))
+	middleW := 0
+	if m.Active {
+		middleW = len([]rune(sep)) + len([]rune(m.SpinnerFrame())) + len([]rune(fmt.Sprintf(" %d%%", m.Pct)))
+	} else if m.Message != "" {
+		middleW = len([]rune(sep)) + len([]rune(m.Message))
+	}
+	rightW := len([]rune("tab | ? | q "))
+
+	gap := m.Width - leftW - middleW - rightW
+	if gap < 1 {
+		gap = 1
 	}
 
-	line1 := styleBar.Render(leftInfo) +
-		styleBar.Render(strings.Repeat(" ", gap)) +
-		styleHint.Render(hint)
-
-	// Line 2: key hints
-	hints := " j/k navigate · h/l expand · o enter dir · a create · Space search · : commands · q quit"
-	hints = truncate(hints, m.Width)
-	line2 := styleHint.Width(m.Width).Render(hints)
-
-	return line1 + "\n" + line2
+	line := left_ + middle + styleBar.Render(strings.Repeat(" ", gap)) + right_
+	return line
 }
 
 func truncate(s string, max int) string {

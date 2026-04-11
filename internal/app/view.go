@@ -52,7 +52,7 @@ func (m Model) renderContent() string {
 
 func (m Model) renderBase() string {
 	dual := m.Width >= 80
-	sbHeight := 2
+	sbHeight := 1
 	paneHeight := m.Height - sbHeight
 
 	var sb strings.Builder
@@ -87,6 +87,7 @@ func (m Model) renderBase() string {
 	}
 
 	sb.WriteString(m.Statusbar.View(&m.Left, &m.Right))
+	// no trailing newline — content is exactly m.Height lines
 
 	return sb.String()
 }

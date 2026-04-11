@@ -15,6 +15,7 @@ import (
 	goto_ "github.com/dgyhome/midnight-captain/internal/ui/goto"
 	"github.com/dgyhome/midnight-captain/internal/ui/pane"
 	"github.com/dgyhome/midnight-captain/internal/ui/search"
+	"github.com/dgyhome/midnight-captain/internal/ui/statusbar"
 )
 
 // Init satisfies tea.Model.
@@ -44,6 +45,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SSHErrorMsg:
 		m.Statusbar.Message = "SSH error: " + msg.Err.Error()
 		return m, nil
+
+	case statusbar.TickMsg:
+		sb, cmd := m.Statusbar.Update(msg)
+		m.Statusbar = sb
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 
 	case ops.ProgressMsg:
 		cmd := m.handleProgress(msg)
@@ -348,17 +357,28 @@ func (m *Model) doPaste() tea.Cmd {
 	}
 
 	m.Statusbar.Message = "Pasting…"
-	return cmd
+	return tea.Batch(cmd, m.Statusbar.StartSpinner())
 }
 
 func (m *Model) handleProgress(msg ops.ProgressMsg) tea.Cmd {
 	ap := m.activePane()
 	switch msg.Status {
+	case ops.StatusRunning:
+		pct := 0
+		if msg.TotalBytes > 0 {
+			pct = int(msg.DoneBytes * 100 / msg.TotalBytes)
+		}
+		m.Statusbar.SetProgress(true, pct)
+		if !m.Statusbar.Active {
+			return m.Statusbar.StartSpinner()
+		}
 	case ops.StatusDone:
+		m.Statusbar.StopSpinner()
 		m.Statusbar.Message = "Done."
 		ap.Reload()
 		m.inactivePane().Reload()
 	case ops.StatusFailed:
+		m.Statusbar.StopSpinner()
 		if msg.Err != nil {
 			m.Statusbar.Message = "Error: " + msg.Err.Error()
 		}

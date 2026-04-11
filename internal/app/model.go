@@ -92,7 +92,7 @@ func (m *Model) setFocus(f FocusPane) {
 
 func (m *Model) propagateSizes() {
 	dual := m.Width >= 80
-	sbHeight := 2
+	sbHeight := 1
 
 	paneHeight := m.Height - sbHeight
 	if paneHeight < 3 {
