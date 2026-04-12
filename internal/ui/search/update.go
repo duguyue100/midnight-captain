@@ -15,7 +15,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ResultsMsg:
 		m.loading = false
-		m.results = filter(m.input.Value())
+		if msg.Done && msg.Files != nil {
+			// Walk completed — store results on main goroutine
+			m.allFiles = msg.Files
+		}
+		m.results = filter(m.input.Value(), m.allFiles)
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -57,7 +61,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	prevVal := m.input.Value()
 	m.input, cmd = m.input.Update(msg)
 	if m.input.Value() != prevVal {
-		m.results = filter(m.input.Value())
+		m.results = filter(m.input.Value(), m.allFiles)
 		m.cursor = 0
 	}
 	return m, cmd

@@ -12,9 +12,11 @@ type SearchResult struct {
 }
 
 // ResultsMsg is sent from the background walk goroutine.
+// Files carries the walked file list safely to the main goroutine.
 type ResultsMsg struct {
 	Results []SearchResult
 	Done    bool
+	Files   []string // populated by startWalk
 }
 
 // NavigateMsg is sent when user selects a result.
@@ -33,7 +35,8 @@ type Model struct {
 	loading   bool
 	Width     int
 	Height    int
-	baseDir   string // directory being searched
+	baseDir   string   // directory being searched
+	allFiles  []string // file list owned by main goroutine
 }
 
 // New creates a search model.
@@ -52,8 +55,8 @@ func (m *Model) OpenLocal(dir string, names []string) tea.Cmd {
 	m.cursor = 0
 	m.loading = false
 	m.input.Reset()
-	allFiles = names
-	m.results = filter("")
+	m.allFiles = names
+	m.results = filter("", m.allFiles)
 	return m.input.Focus()
 }
 
@@ -66,7 +69,7 @@ func (m *Model) OpenRecursive(dir string) tea.Cmd {
 	m.cursor = 0
 	m.loading = true
 	m.input.Reset()
-	allFiles = nil
+	m.allFiles = nil
 	return tea.Batch(m.input.Focus(), startWalk(dir))
 }
 
