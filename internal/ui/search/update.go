@@ -15,7 +15,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ResultsMsg:
 		m.loading = false
-		m.results = filter(m.input.Value())
+		if msg.Done {
+			m.allFiles = msg.Files
+		}
+		m.results = m.filter(m.input.Value())
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -57,7 +60,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	prevVal := m.input.Value()
 	m.input, cmd = m.input.Update(msg)
 	if m.input.Value() != prevVal {
-		m.results = filter(m.input.Value())
+		m.results = m.filter(m.input.Value())
 		m.cursor = 0
 	}
 	return m, cmd

@@ -1,17 +1,16 @@
 package search
 
 import (
+	"io/fs"
 	"path/filepath"
 
 	"charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
-	"io/fs"
 )
 
-// allFiles caches the full file walk for the current session.
-var allFiles []string
-
 // startWalk walks baseDir in a goroutine and sends ResultsMsg when done.
+// The collected file list is returned in ResultsMsg.Files — never written to
+// shared state — so there is no data race.
 func startWalk(baseDir string) tea.Cmd {
 	return func() tea.Msg {
 		var paths []string
@@ -28,34 +27,32 @@ func startWalk(baseDir string) tea.Cmd {
 			}
 			return nil
 		})
-		allFiles = paths
-		return ResultsMsg{Done: true}
+		return ResultsMsg{Files: paths, Done: true}
 	}
 }
 
-// filter applies fuzzy matching to allFiles using the query.
-func filter(query string) []SearchResult {
-	if query == "" || len(allFiles) == 0 {
-		// Return all (capped)
-		limit := len(allFiles)
+// filter applies fuzzy matching to m.allFiles using the query.
+func (m *Model) filter(query string) []SearchResult {
+	if query == "" || len(m.allFiles) == 0 {
+		limit := len(m.allFiles)
 		if limit > 100 {
 			limit = 100
 		}
 		results := make([]SearchResult, limit)
-		for i, f := range allFiles[:limit] {
+		for i, f := range m.allFiles[:limit] {
 			results[i] = SearchResult{Path: f, Score: 0}
 		}
 		return results
 	}
 
-	matches := fuzzy.Find(query, allFiles)
+	matches := fuzzy.Find(query, m.allFiles)
 	limit := len(matches)
 	if limit > 100 {
 		limit = 100
 	}
 	results := make([]SearchResult, limit)
-	for i, m := range matches[:limit] {
-		results[i] = SearchResult{Path: m.Str, Score: m.Score}
+	for i, match := range matches[:limit] {
+		results[i] = SearchResult{Path: match.Str, Score: match.Score}
 	}
 	return results
 }

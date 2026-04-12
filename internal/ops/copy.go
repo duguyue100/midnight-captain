@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"charm.land/bubbletea/v2"
 	"github.com/dgyhome/midnight-captain/internal/fs"
@@ -21,8 +20,6 @@ func Copy(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 		}
 
 		var done int64
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
 
 		for _, src := range sources {
 			if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id); err != nil {

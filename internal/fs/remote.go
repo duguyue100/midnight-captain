@@ -73,7 +73,13 @@ func (r *RemoteFS) Open(path string) (io.ReadCloser, error) {
 }
 
 func (r *RemoteFS) Create(path string, perm os.FileMode) (io.WriteCloser, error) {
-	return r.client.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+	f, err := r.client.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
+	if err != nil {
+		return nil, err
+	}
+	// Best-effort: remote umask may restrict, so ignore chmod errors.
+	_ = r.client.Chmod(path, perm)
+	return f, nil
 }
 
 func (r *RemoteFS) IsLocal() bool { return false }

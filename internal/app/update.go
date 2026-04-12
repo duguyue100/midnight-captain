@@ -546,14 +546,19 @@ func mkdirAllFS(fsys appfs.FileSystem, path string) error {
 	for _, part := range parts {
 		err := fsys.Mkdir(part, 0o755)
 		if err != nil {
-			// Ignore "already exists" errors
-			if !os.IsExist(err) {
-				// Try stat — if it exists as a dir, continue
-				if _, serr := fsys.Stat(part); serr == nil {
-					continue
-				}
-				return err
+			if os.IsExist(err) {
+				continue
 			}
+			// Mkdir failed for a reason other than "exists" — check if it's
+			// already a directory via Stat before giving up.
+			info, serr := fsys.Stat(part)
+			if serr != nil {
+				return err // original mkdir error
+			}
+			if !info.IsDir {
+				return fmt.Errorf("mkdir: %s is not a directory", part)
+			}
+			// It's an existing directory — continue.
 		}
 	}
 	return nil
