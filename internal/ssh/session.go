@@ -28,10 +28,11 @@ type Session struct {
 func Connect(target string) (*Session, error) {
 	user, host, port := parseTarget(target)
 
-	authMethods := collectAuthMethods()
+	authMethods, cleanup := collectAuthMethods()
 	if len(authMethods) == 0 {
 		return nil, fmt.Errorf("no auth methods available")
 	}
+	defer cleanup()
 
 	hostKeyCallback, _ := buildHostKeyCallback()
 
@@ -92,14 +93,17 @@ func parseTarget(target string) (user, host, port string) {
 	return
 }
 
-func collectAuthMethods() []ssh.AuthMethod {
+func collectAuthMethods() ([]ssh.AuthMethod, func()) {
 	var methods []ssh.AuthMethod
+	var agentConn net.Conn // track for cleanup
 
 	// SSH agent
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
 		conn, err := net.Dial("unix", sock)
 		if err == nil {
-			methods = append(methods, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
+			agentClient := agent.NewClient(conn)
+			methods = append(methods, ssh.PublicKeysCallback(agentClient.Signers))
+			agentConn = conn
 		}
 	}
 
@@ -112,7 +116,12 @@ func collectAuthMethods() []ssh.AuthMethod {
 		}
 	}
 
-	return methods
+	cleanup := func() {
+		if agentConn != nil {
+			agentConn.Close()
+		}
+	}
+	return methods, cleanup
 }
 
 func tryLoadKey(path string) ssh.AuthMethod {

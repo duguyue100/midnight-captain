@@ -1,15 +1,12 @@
 package search
 
 import (
+	"io/fs"
 	"path/filepath"
 
 	"charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
-	"io/fs"
 )
-
-// allFiles caches the full file walk for the current session.
-var allFiles []string
 
 // startWalk walks baseDir in a goroutine and sends ResultsMsg when done.
 func startWalk(baseDir string) tea.Cmd {
@@ -28,27 +25,26 @@ func startWalk(baseDir string) tea.Cmd {
 			}
 			return nil
 		})
-		allFiles = paths
-		return ResultsMsg{Done: true}
+		return ResultsMsg{Done: true, Files: paths}
 	}
 }
 
-// filter applies fuzzy matching to allFiles using the query.
-func filter(query string) []SearchResult {
-	if query == "" || len(allFiles) == 0 {
+// filter applies fuzzy matching to the given file list using the query.
+func filter(query string, files []string) []SearchResult {
+	if query == "" || len(files) == 0 {
 		// Return all (capped)
-		limit := len(allFiles)
+		limit := len(files)
 		if limit > 100 {
 			limit = 100
 		}
 		results := make([]SearchResult, limit)
-		for i, f := range allFiles[:limit] {
+		for i, f := range files[:limit] {
 			results[i] = SearchResult{Path: f, Score: 0}
 		}
 		return results
 	}
 
-	matches := fuzzy.Find(query, allFiles)
+	matches := fuzzy.Find(query, files)
 	limit := len(matches)
 	if limit > 100 {
 		limit = 100
