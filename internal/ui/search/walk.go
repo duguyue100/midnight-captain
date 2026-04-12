@@ -14,8 +14,10 @@ import (
 func startWalk(baseDir string) tea.Cmd {
 	return func() tea.Msg {
 		var paths []string
+		var walkErrors int
 		_ = filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
+				walkErrors++
 				return nil // skip unreadable dirs
 			}
 			if d.IsDir() && d.Name() == ".git" {
@@ -27,7 +29,7 @@ func startWalk(baseDir string) tea.Cmd {
 			}
 			return nil
 		})
-		return ResultsMsg{Files: paths, Done: true}
+		return ResultsMsg{Files: paths, Done: true, WalkErrors: walkErrors}
 	}
 }
 

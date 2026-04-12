@@ -33,6 +33,10 @@ type Model struct {
 	cursor   int     // selected entry index (-1 = none)
 	notFound bool    // typed path component does not exist
 
+	// PaneCwd is the active pane's working directory, used as base for
+	// relative paths instead of the process cwd.
+	PaneCwd string
+
 	Width  int
 	Height int
 }
@@ -49,9 +53,11 @@ func New() Model {
 }
 
 // Open shows the prompt, optionally seeding it with an initial path.
-func (m *Model) Open(seed string) tea.Cmd {
+// paneCwd is the active pane's working directory used as base for relative paths.
+func (m *Model) Open(seed string, paneCwd string) tea.Cmd {
 	m.Visible = true
 	m.cursor = -1
+	m.PaneCwd = paneCwd
 	m.input.Reset()
 	if seed != "" {
 		m.input.SetValue(seed)
@@ -135,7 +141,7 @@ func (m Model) confirm() (Model, tea.Cmd) {
 		return m, func() tea.Msg { return NavigateMsg{Dir: base} }
 	}
 	// No selection — resolve whatever is typed
-	dir := resolveDir(m.input.Value())
+	dir := m.resolveDir(m.input.Value())
 	if dir == "" {
 		m.notFound = true
 		return m, nil
@@ -192,8 +198,12 @@ func (m *Model) refresh() {
 	expanded := expandTilde(raw)
 
 	if !filepath.IsAbs(expanded) {
-		cwd, _ := os.Getwd()
-		expanded = filepath.Join(cwd, expanded)
+		// Use pane's Cwd as base for relative paths, not process cwd
+		base := m.PaneCwd
+		if base == "" {
+			base, _ = os.Getwd()
+		}
+		expanded = filepath.Join(base, expanded)
 	}
 
 	// Determine which directory to list and which prefix to filter by.
@@ -277,17 +287,18 @@ func contractTilde(s string) string {
 }
 
 // resolveDir takes raw input and returns the target directory, or "".
-func resolveDir(raw string) string {
+func (m *Model) resolveDir(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
 	}
 	expanded := expandTilde(raw)
 	if !filepath.IsAbs(expanded) {
-		cwd, err := os.Getwd()
-		if err == nil {
-			expanded = filepath.Join(cwd, expanded)
+		base := m.PaneCwd
+		if base == "" {
+			base, _ = os.Getwd()
 		}
+		expanded = filepath.Join(base, expanded)
 	}
 	expanded = filepath.Clean(expanded)
 	info, err := os.Stat(expanded)

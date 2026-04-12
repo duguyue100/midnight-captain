@@ -65,11 +65,16 @@ func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, tot
 	if err != nil {
 		return err
 	}
-	defer w.Close()
 
 	counter := &countWriter{w: w, done: done}
-	_, err = io.Copy(counter, r)
-	return err
+	_, copyErr := io.Copy(counter, r)
+
+	// Check Close error explicitly — buffered SFTP writes may flush here
+	closeErr := w.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
 }
 
 func calcTotal(sources []string, srcFS fs.FileSystem) (int64, error) {

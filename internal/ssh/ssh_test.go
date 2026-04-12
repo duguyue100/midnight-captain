@@ -1,7 +1,7 @@
 package appssh
 
 import (
-	"os"
+	"os/user"
 	"testing"
 )
 
@@ -32,11 +32,14 @@ func TestParseTargetUserAtHostPort(t *testing.T) {
 }
 
 func TestParseTargetHostOnly(t *testing.T) {
-	// No "@" — falls back to $USER env
-	os.Setenv("USER", "testuser")
-	user, host, port := parseTarget("myhost.local")
-	if user != "testuser" {
-		t.Errorf("user=%q want 'testuser'", user)
+	// No "@" — falls back to user.Current()
+	u, err := user.Current()
+	if err != nil {
+		t.Skip("cannot determine current user")
+	}
+	userName, host, port := parseTarget("myhost.local")
+	if userName != u.Username {
+		t.Errorf("user=%q want %q (from user.Current)", userName, u.Username)
 	}
 	if host != "myhost.local" {
 		t.Errorf("host=%q want 'myhost.local'", host)
@@ -47,10 +50,13 @@ func TestParseTargetHostOnly(t *testing.T) {
 }
 
 func TestParseTargetHostPortOnly(t *testing.T) {
-	os.Setenv("USER", "envuser")
-	user, host, port := parseTarget("remotehost:9922")
-	if user != "envuser" {
-		t.Errorf("user=%q want 'envuser'", user)
+	u, err := user.Current()
+	if err != nil {
+		t.Skip("cannot determine current user")
+	}
+	userName, host, port := parseTarget("remotehost:9922")
+	if userName != u.Username {
+		t.Errorf("user=%q want %q (from user.Current)", userName, u.Username)
 	}
 	if host != "remotehost" {
 		t.Errorf("host=%q want 'remotehost'", host)

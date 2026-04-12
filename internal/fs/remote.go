@@ -3,7 +3,6 @@ package fs
 import (
 	"io"
 	"os"
-	"time"
 
 	"github.com/pkg/sftp"
 )
@@ -53,7 +52,12 @@ func (r *RemoteFS) Stat(path string) (FileEntry, error) {
 }
 
 func (r *RemoteFS) Mkdir(path string, perm os.FileMode) error {
-	return r.client.MkdirAll(path)
+	if err := r.client.MkdirAll(path); err != nil {
+		return err
+	}
+	// Best-effort chmod to honor requested permissions
+	_ = r.client.Chmod(path, perm)
+	return nil
 }
 
 func (r *RemoteFS) Remove(path string) error {
@@ -95,6 +99,3 @@ func infoToEntry(info os.FileInfo) FileEntry {
 		IsLink:  info.Mode()&os.ModeSymlink != 0,
 	}
 }
-
-// ensure time import used
-var _ = time.Time{}

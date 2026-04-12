@@ -13,9 +13,10 @@ type SearchResult struct {
 
 // ResultsMsg is sent from the background walk goroutine.
 type ResultsMsg struct {
-	Files   []string // full file list from walk (only set when Done=true)
-	Results []SearchResult
-	Done    bool
+	Files      []string // full file list from walk (only set when Done=true)
+	Results    []SearchResult
+	Done       bool
+	WalkErrors int // count of unreadable dirs/files encountered during walk
 }
 
 // NavigateMsg is sent when user selects a result.

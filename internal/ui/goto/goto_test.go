@@ -79,7 +79,8 @@ func TestContractExpandRoundtrip(t *testing.T) {
 // --- resolveDir ---
 
 func TestResolveDirEmpty(t *testing.T) {
-	got := resolveDir("")
+	m := New()
+	got := m.resolveDir("")
 	if got != "" {
 		t.Errorf("empty input: want '', got %q", got)
 	}
@@ -87,7 +88,8 @@ func TestResolveDirEmpty(t *testing.T) {
 
 func TestResolveDirExistingDir(t *testing.T) {
 	tmp := t.TempDir()
-	got := resolveDir(tmp)
+	m := New()
+	got := m.resolveDir(tmp)
 	if got != tmp {
 		t.Errorf("got %q, want %q", got, tmp)
 	}
@@ -97,7 +99,8 @@ func TestResolveDirExistingFile(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "file.txt")
 	os.WriteFile(f, []byte("x"), 0644)
-	got := resolveDir(f)
+	m := New()
+	got := m.resolveDir(f)
 	// file → return parent dir
 	if got != tmp {
 		t.Errorf("file path: got %q, want parent %q", got, tmp)
@@ -105,7 +108,8 @@ func TestResolveDirExistingFile(t *testing.T) {
 }
 
 func TestResolveDirNonExistent(t *testing.T) {
-	got := resolveDir("/this/does/not/exist/ever")
+	m := New()
+	got := m.resolveDir("/this/does/not/exist/ever")
 	if got != "" {
 		t.Errorf("nonexistent: want '', got %q", got)
 	}
@@ -113,7 +117,8 @@ func TestResolveDirNonExistent(t *testing.T) {
 
 func TestResolveDirTilde(t *testing.T) {
 	u, _ := user.Current()
-	got := resolveDir("~")
+	m := New()
+	got := m.resolveDir("~")
 	if got != u.HomeDir {
 		t.Errorf("~ resolves to home: got %q, want %q", got, u.HomeDir)
 	}

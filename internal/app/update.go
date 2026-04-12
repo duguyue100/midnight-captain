@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"charm.land/bubbletea/v2"
 	appfs "github.com/dgyhome/midnight-captain/internal/fs"
@@ -17,6 +18,9 @@ import (
 	"github.com/dgyhome/midnight-captain/internal/ui/search"
 	"github.com/dgyhome/midnight-captain/internal/ui/statusbar"
 )
+
+// opCounter provides unique operation IDs.
+var opCounter atomic.Uint64
 
 // Init satisfies tea.Model.
 func (m Model) Init() tea.Cmd {
@@ -346,7 +350,7 @@ func (m *Model) doPaste() tea.Cmd {
 	sources := m.Clipboard.Entries
 	clipOp := m.Clipboard.Op
 
-	id := fmt.Sprintf("op-%p", &sources)
+	id := fmt.Sprintf("op-%d", opCounter.Add(1))
 
 	var cmd tea.Cmd
 	if clipOp == ops.ClipCut {
@@ -368,8 +372,10 @@ func (m *Model) handleProgress(msg ops.ProgressMsg) tea.Cmd {
 		if msg.TotalBytes > 0 {
 			pct = int(msg.DoneBytes * 100 / msg.TotalBytes)
 		}
+		// Check Active before SetProgress so StartSpinner fires on first StatusRunning
+		needSpinner := !m.Statusbar.Active
 		m.Statusbar.SetProgress(true, pct)
-		if !m.Statusbar.Active {
+		if needSpinner {
 			return m.Statusbar.StartSpinner()
 		}
 	case ops.StatusDone:
@@ -395,7 +401,7 @@ func (m *Model) handleConfirmResult(msg dialog.ConfirmResultMsg) tea.Cmd {
 		ap := m.activePane()
 		paths := selectedPaths(ap)
 		ap.Selected = make(map[int]bool)
-		id := fmt.Sprintf("del-%d", len(paths))
+		id := fmt.Sprintf("del-%d", opCounter.Add(1))
 		return ops.Delete(id, paths, ap.FS)
 	}
 	return nil
@@ -413,10 +419,7 @@ func (m *Model) handleInputResult(msg dialog.InputResultMsg) tea.Cmd {
 			return nil
 		}
 		oldPath := node.FullPath
-		cmd := ops.Rename(oldPath, msg.Value, ap.FS)
-		return tea.Batch(cmd, func() tea.Msg {
-			return ops.ProgressMsg{OpID: "rename", Status: ops.StatusRunning}
-		})
+		return ops.Rename(oldPath, msg.Value, ap.FS)
 	default:
 		// "create:<baseDir>" — smart create: dir if trailing /, else file
 		if strings.HasPrefix(msg.ID, "create:") {
@@ -477,7 +480,7 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 		if len(msg.Args) > 0 {
 			arg = msg.Args[0]
 		}
-		return m.Goto.Open(arg)
+		return m.Goto.Open(arg, ap.Cwd)
 
 	case "quit":
 		return tea.Quit
