@@ -194,10 +194,16 @@ func TestCopyFile(t *testing.T) {
 	}
 	cmd := Copy("cp1", []string{"/file.txt"}, "/dst", src, dst)
 	msg := cmd()
-	pm, ok := msg.(ProgressMsg)
+	psm, ok := msg.(ProgressStreamMsg)
 	if !ok {
-		t.Fatalf("expected ProgressMsg, got %T", msg)
+		t.Fatalf("expected ProgressStreamMsg, got %T", msg)
 	}
+
+	var pm ProgressMsg
+	for m := range psm.C {
+		pm = m.(ProgressMsg)
+	}
+
 	if pm.Status != StatusDone {
 		t.Errorf("status=%v want Done", pm.Status)
 	}
@@ -211,7 +217,25 @@ func TestCopyStatError(t *testing.T) {
 	dst := &mockFS{}
 	cmd := Copy("cp2", []string{"/missing"}, "/dst", src, dst)
 	msg := cmd()
-	pm := msg.(ProgressMsg)
+
+	// This returns the stream immediately
+	psm, ok := msg.(ProgressStreamMsg)
+	if !ok {
+		// Or it returns ProgressMsg immediately if total calculation fails early
+		if pm, ok := msg.(ProgressMsg); ok {
+			if pm.Status != StatusFailed {
+				t.Errorf("status=%v want Failed", pm.Status)
+			}
+			return
+		}
+		t.Fatalf("expected ProgressStreamMsg or ProgressMsg, got %T", msg)
+	}
+
+	var pm ProgressMsg
+	for m := range psm.C {
+		pm = m.(ProgressMsg)
+	}
+
 	if pm.Status != StatusFailed {
 		t.Errorf("status=%v want Failed", pm.Status)
 	}

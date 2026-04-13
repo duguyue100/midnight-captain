@@ -23,10 +23,16 @@ func TestCopyFileIntegration(t *testing.T) {
 	lfs := localFS()
 	cmd := Copy("cp-int", []string{srcFile}, dst, lfs, lfs)
 	msg := cmd()
-	pm, ok := msg.(ProgressMsg)
+	psm, ok := msg.(ProgressStreamMsg)
 	if !ok {
-		t.Fatalf("expected ProgressMsg, got %T", msg)
+		t.Fatalf("expected ProgressStreamMsg, got %T", msg)
 	}
+
+	var pm ProgressMsg
+	for m := range psm.C {
+		pm = m.(ProgressMsg)
+	}
+
 	if pm.Status != StatusDone {
 		t.Fatalf("status=%v err=%v", pm.Status, pm.Err)
 	}
@@ -52,7 +58,13 @@ func TestCopyDirIntegration(t *testing.T) {
 	lfs := localFS()
 	cmd := Copy("cp-dir", []string{subDir}, dst, lfs, lfs)
 	msg := cmd()
-	pm := msg.(ProgressMsg)
+	psm := msg.(ProgressStreamMsg)
+
+	var pm ProgressMsg
+	for m := range psm.C {
+		pm = m.(ProgressMsg)
+	}
+
 	if pm.Status != StatusDone {
 		t.Fatalf("copy dir: status=%v err=%v", pm.Status, pm.Err)
 	}
