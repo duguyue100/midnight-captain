@@ -61,23 +61,26 @@ func (m Model) View() string {
 	if limit > maxSuggest {
 		limit = maxSuggest
 	}
-	for i := 0; i < limit; i++ {
-		cmd := m.filtered[i]
-		line := fmt.Sprintf("%-12s  %s", cmd.Name, cmd.Description)
-		if len([]rune(line)) > innerW {
-			line = string([]rune(line)[:innerW])
-		}
-		sb.WriteByte('\n')
-		if i == m.Cursor {
-			sb.WriteString(styleSuggestionActive.Width(innerW).Render(line))
-		} else {
-			sb.WriteString(styleSuggestion.Width(innerW).Render(line))
-		}
-	}
 
-	if len(m.filtered) == 0 {
+	// Always render maxSuggest lines to keep height fixed
+	for i := 0; i < maxSuggest; i++ {
 		sb.WriteByte('\n')
-		sb.WriteString(styleDesc.Width(innerW).Render("  no matching commands"))
+		if i < limit {
+			cmd := m.filtered[i]
+			line := fmt.Sprintf("%-12s  %s", cmd.Name, cmd.Description)
+			if len([]rune(line)) > innerW {
+				line = string([]rune(line)[:innerW])
+			}
+			if i == m.Cursor {
+				sb.WriteString(styleSuggestionActive.Width(innerW).Render(line))
+			} else {
+				sb.WriteString(styleSuggestion.Width(innerW).Render(line))
+			}
+		} else if i == 0 && limit == 0 {
+			sb.WriteString(styleDesc.Width(innerW).Render("  no matching commands"))
+		} else {
+			sb.WriteString(styleSuggestion.Width(innerW).Render(""))
+		}
 	}
 
 	box := styleBox.Width(paletteW).Render(sb.String())

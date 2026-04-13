@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,6 +41,9 @@ type Model struct {
 	Width      int
 	Height     int
 	lastKey    string
+
+	activeCancel context.CancelFunc
+
 	// active operations (for progress display)
 	Operations []ops.Operation
 }

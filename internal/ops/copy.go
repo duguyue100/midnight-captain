@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,7 @@ import (
 
 // Copy performs an async copy of sources into destDir on dstFS.
 // Progress is reported via tea.Cmd messages.
-func Copy(id string, sources []string, destDir string, srcFS, dstFS fs.FileSystem) tea.Cmd {
+func Copy(ctx context.Context, id string, sources []string, destDir string, srcFS, dstFS fs.FileSystem) tea.Cmd {
 	return func() tea.Msg {
 		total, err := calcTotal(sources, srcFS)
 		if err != nil {
@@ -25,7 +26,11 @@ func Copy(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 		go func() {
 			defer close(ch)
 			for _, src := range sources {
-				if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
+				if ctx.Err() != nil {
+					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: context.Canceled}
+					return
+				}
+				if err := copyEntry(ctx, src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
 					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
 					return
 				}
@@ -37,7 +42,10 @@ func Copy(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 	}
 }
 
-func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, total int64, id string, ch chan tea.Msg) error {
+func copyEntry(ctx context.Context, src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, total int64, id string, ch chan tea.Msg) error {
+	if ctx.Err() != nil {
+		return context.Canceled
+	}
 	entry, err := srcFS.Stat(src)
 	if err != nil {
 		return err
@@ -53,8 +61,11 @@ func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, tot
 			return err
 		}
 		for _, child := range children {
+			if ctx.Err() != nil {
+				return context.Canceled
+			}
 			childSrc := filepath.Join(src, child.Name)
-			if err := copyEntry(childSrc, destPath, srcFS, dstFS, done, total, id, ch); err != nil {
+			if err := copyEntry(ctx, childSrc, destPath, srcFS, dstFS, done, total, id, ch); err != nil {
 				return err
 			}
 		}
@@ -73,11 +84,18 @@ func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, tot
 		return err
 	}
 
-	counter := &countWriter{w: w, done: done, total: total, id: id, ch: ch}
+	counter := &countWriter{w: w, done: done, total: total, id: id, ch: ch, currentFile: entry.Name, ctx: ctx}
 	_, copyErr := io.Copy(counter, r)
 
 	// Check Close error explicitly — buffered SFTP writes may flush here
 	closeErr := w.Close()
+
+	// Clean up if cancelled
+	if ctx.Err() != nil {
+		_ = dstFS.RemoveAll(destPath)
+		return context.Canceled
+	}
+
 	if copyErr != nil {
 		return copyErr
 	}
@@ -120,15 +138,20 @@ func walkSize(path string, srcFS fs.FileSystem) (int64, error) {
 }
 
 type countWriter struct {
-	w     io.Writer
-	done  *int64
-	total int64
-	id    string
-	ch    chan tea.Msg
-	last  int64
+	w           io.Writer
+	done        *int64
+	total       int64
+	id          string
+	ch          chan tea.Msg
+	last        int64
+	currentFile string
+	ctx         context.Context
 }
 
 func (c *countWriter) Write(p []byte) (int, error) {
+	if c.ctx.Err() != nil {
+		return 0, context.Canceled
+	}
 	n, err := c.w.Write(p)
 	cur := *c.done + int64(n)
 	*c.done = cur
@@ -137,7 +160,7 @@ func (c *countWriter) Write(p []byte) (int, error) {
 	if cur-c.last > 512*1024 || cur == c.total {
 		c.last = cur
 		select {
-		case c.ch <- ProgressMsg{OpID: c.id, DoneBytes: cur, TotalBytes: c.total, Status: StatusRunning}:
+		case c.ch <- ProgressMsg{OpID: c.id, DoneBytes: cur, TotalBytes: c.total, Status: StatusRunning, CurrentFile: c.currentFile}:
 		default: // skip if channel full
 		}
 	}

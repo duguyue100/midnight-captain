@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +22,7 @@ func TestCopyFileIntegration(t *testing.T) {
 	os.WriteFile(srcFile, []byte("hello world"), 0644)
 
 	lfs := localFS()
-	cmd := Copy("cp-int", []string{srcFile}, dst, lfs, lfs)
+	cmd := Copy(context.Background(), "cp-int", []string{srcFile}, dst, lfs, lfs)
 	msg := cmd()
 	psm, ok := msg.(ProgressStreamMsg)
 	if !ok {
@@ -56,7 +57,7 @@ func TestCopyDirIntegration(t *testing.T) {
 	os.WriteFile(filepath.Join(subDir, "nested.txt"), []byte("nested"), 0644)
 
 	lfs := localFS()
-	cmd := Copy("cp-dir", []string{subDir}, dst, lfs, lfs)
+	cmd := Copy(context.Background(), "cp-dir", []string{subDir}, dst, lfs, lfs)
 	msg := cmd()
 	psm := msg.(ProgressStreamMsg)
 
@@ -81,7 +82,7 @@ func TestCopyDirIntegration(t *testing.T) {
 func TestCopyMissingSourceIntegration(t *testing.T) {
 	dst := t.TempDir()
 	lfs := localFS()
-	cmd := Copy("cp-miss", []string{"/no/such/file.txt"}, dst, lfs, lfs)
+	cmd := Copy(context.Background(), "cp-miss", []string{"/no/such/file.txt"}, dst, lfs, lfs)
 	msg := cmd()
 	pm := msg.(ProgressMsg)
 	if pm.Status != StatusFailed {
@@ -99,7 +100,7 @@ func TestMoveFileSameFS(t *testing.T) {
 	os.WriteFile(srcFile, []byte("move me"), 0644)
 
 	lfs := localFS()
-	cmd := Move("mv-int", []string{srcFile}, dst, lfs, lfs)
+	cmd := Move(context.Background(), "mv-int", []string{srcFile}, dst, lfs, lfs)
 	msg := cmd()
 	pm := msg.(ProgressMsg)
 	if pm.Status != StatusDone {
@@ -130,7 +131,7 @@ func TestDeleteFileIntegration(t *testing.T) {
 	os.WriteFile(f2, nil, 0644)
 
 	lfs := localFS()
-	cmd := Delete("del-int", []string{f1, f2}, lfs)
+	cmd := Delete(context.Background(), "del-int", []string{f1, f2}, lfs)
 	msg := cmd()
 	pm := msg.(ProgressMsg)
 	if pm.Status != StatusDone {
@@ -150,7 +151,7 @@ func TestDeleteDirIntegration(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "sub", "file.txt"), nil, 0644)
 
 	lfs := localFS()
-	cmd := Delete("del-dir", []string{dir}, lfs)
+	cmd := Delete(context.Background(), "del-dir", []string{dir}, lfs)
 	msg := cmd()
 	pm := msg.(ProgressMsg)
 	if pm.Status != StatusDone {

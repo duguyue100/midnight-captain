@@ -23,9 +23,10 @@ type Model struct {
 	Width   int
 
 	// progress state
-	Active    bool // true while an op is running
-	Pct       int  // 0–100
-	spinFrame int
+	Active      bool // true while an op is running
+	Pct         int  // 0–100
+	spinFrame   int
+	CurrentFile string // currently processing file
 }
 
 // New creates a statusbar model.
@@ -40,9 +41,10 @@ func (m *Model) SetSize(w int) {
 
 // SetProgress updates the active operation progress (pct 0–100, active=true).
 // Call with active=false to clear.
-func (m *Model) SetProgress(active bool, pct int) {
+func (m *Model) SetProgress(active bool, pct int, file string) {
 	m.Active = active
 	m.Pct = pct
+	m.CurrentFile = file
 }
 
 // tickCmd sends a TickMsg after 100ms to animate the spinner.
@@ -77,6 +79,7 @@ func (m *Model) StartSpinner() tea.Cmd {
 func (m *Model) StopSpinner() {
 	m.Active = false
 	m.Pct = 0
+	m.CurrentFile = ""
 }
 
 // SpinnerFrame returns the current spinner glyph.

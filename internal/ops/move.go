@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -10,13 +11,17 @@ import (
 
 // Move performs an async move of sources into destDir.
 // Same-FS move tries Rename first; falls back to copy+delete.
-func Move(id string, sources []string, destDir string, srcFS, dstFS fs.FileSystem) tea.Cmd {
+func Move(ctx context.Context, id string, sources []string, destDir string, srcFS, dstFS fs.FileSystem) tea.Cmd {
 	return func() tea.Msg {
 		// Same local FS: try rename (instant) with rollback on partial failure
 		if srcFS.IsLocal() && dstFS.IsLocal() {
 			var renamed []struct{ src, dst string }
 			allOk := true
 			for _, src := range sources {
+				if ctx.Err() != nil {
+					allOk = false
+					break
+				}
 				entry, err := srcFS.Stat(src)
 				if err != nil {
 					allOk = false
@@ -51,7 +56,11 @@ func Move(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 		go func() {
 			defer close(ch)
 			for _, src := range sources {
-				if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
+				if ctx.Err() != nil {
+					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: context.Canceled}
+					return
+				}
+				if err := copyEntry(ctx, src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
 					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
 					return
 				}

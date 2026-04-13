@@ -39,11 +39,12 @@ type Operation struct {
 
 // ProgressMsg is sent to bubbletea to report progress.
 type ProgressMsg struct {
-	OpID       string
-	DoneBytes  int64
-	TotalBytes int64
-	Status     OpStatus
-	Err        error
+	OpID        string
+	DoneBytes   int64
+	TotalBytes  int64
+	Status      OpStatus
+	Err         error
+	CurrentFile string
 }
 
 // ProgressStreamMsg wraps a channel to read continuous progress.

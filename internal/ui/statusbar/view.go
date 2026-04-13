@@ -66,7 +66,11 @@ func (m Model) View(active PaneInfo) string {
 	middle := ""
 	if m.Active {
 		spin := styleSpinner.Render(m.SpinnerFrame())
-		pct := styleBar.Render(fmt.Sprintf(" %d%%", m.Pct))
+		pctStr := fmt.Sprintf(" %d%%", m.Pct)
+		if m.CurrentFile != "" {
+			pctStr += " " + truncate(m.CurrentFile, 20)
+		}
+		pct := styleBar.Render(pctStr)
 		middle = styleSep.Render(sep) + spin + pct
 	} else if m.Message != "" {
 		middle = styleSep.Render(sep) + styleMsg.Render(m.Message)
@@ -79,7 +83,11 @@ func (m Model) View(active PaneInfo) string {
 	leftW := len([]rune(countStr))
 	middleW := 0
 	if m.Active {
-		middleW = len([]rune(sep)) + len([]rune(m.SpinnerFrame())) + len([]rune(fmt.Sprintf(" %d%%", m.Pct)))
+		pctStr := fmt.Sprintf(" %d%%", m.Pct)
+		if m.CurrentFile != "" {
+			pctStr += " " + truncate(m.CurrentFile, 20)
+		}
+		middleW = len([]rune(sep)) + len([]rune(m.SpinnerFrame())) + len([]rune(pctStr))
 	} else if m.Message != "" {
 		middleW = len([]rune(sep)) + len([]rune(m.Message))
 	}

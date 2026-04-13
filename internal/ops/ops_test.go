@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"context"
 	"bytes"
 	"io"
 	"os"
@@ -37,7 +38,7 @@ func TestParentDir(t *testing.T) {
 func TestCountWriter(t *testing.T) {
 	var buf bytes.Buffer
 	var done int64
-	cw := &countWriter{w: &buf, done: &done}
+	cw := &countWriter{w: &buf, done: &done, ctx: context.Background()}
 
 	data := []byte("hello world")
 	n, err := cw.Write(data)
@@ -58,7 +59,7 @@ func TestCountWriter(t *testing.T) {
 func TestCountWriterAccumulates(t *testing.T) {
 	var buf bytes.Buffer
 	var done int64
-	cw := &countWriter{w: &buf, done: &done}
+	cw := &countWriter{w: &buf, done: &done, ctx: context.Background()}
 
 	cw.Write([]byte("abc"))
 	cw.Write([]byte("de"))
@@ -73,7 +74,7 @@ func TestCountWriterPartialWrite(t *testing.T) {
 	// limitWriter only accepts at most N bytes per Write.
 	var done int64
 	lw := &limitWriter{max: 3}
-	cw := &countWriter{w: lw, done: &done}
+	cw := &countWriter{w: lw, done: &done, ctx: context.Background()}
 
 	// Write 5 bytes, but underlying writer only accepts 3.
 	n, err := cw.Write([]byte("hello"))
@@ -145,7 +146,7 @@ func TestDeleteSuccess(t *testing.T) {
 			return nil
 		},
 	}
-	cmd := Delete("del1", []string{"/a", "/b"}, fsys)
+	cmd := Delete(context.Background(), "del1", []string{"/a", "/b"}, fsys)
 	msg := cmd()
 	pm, ok := msg.(ProgressMsg)
 	if !ok {
@@ -167,7 +168,7 @@ func TestDeleteStopsOnFirstError(t *testing.T) {
 			return io.ErrUnexpectedEOF // always fail
 		},
 	}
-	cmd := Delete("del2", []string{"/a", "/b", "/c"}, fsys)
+	cmd := Delete(context.Background(), "del2", []string{"/a", "/b", "/c"}, fsys)
 	msg := cmd()
 	pm := msg.(ProgressMsg)
 	if pm.Status != StatusFailed {
@@ -192,7 +193,7 @@ func TestCopyFile(t *testing.T) {
 			return &captureWriter{buf: &written}, nil
 		},
 	}
-	cmd := Copy("cp1", []string{"/file.txt"}, "/dst", src, dst)
+	cmd := Copy(context.Background(), "cp1", []string{"/file.txt"}, "/dst", src, dst)
 	msg := cmd()
 	psm, ok := msg.(ProgressStreamMsg)
 	if !ok {
@@ -215,7 +216,7 @@ func TestCopyFile(t *testing.T) {
 func TestCopyStatError(t *testing.T) {
 	src := &mockFS{statErr: io.ErrUnexpectedEOF}
 	dst := &mockFS{}
-	cmd := Copy("cp2", []string{"/missing"}, "/dst", src, dst)
+	cmd := Copy(context.Background(), "cp2", []string{"/missing"}, "/dst", src, dst)
 	msg := cmd()
 
 	// This returns the stream immediately

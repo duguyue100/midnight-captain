@@ -57,3 +57,16 @@ func (m *Model) SetSize(w, h int) {
 	m.Width = w
 	m.Height = h
 }
+
+// SetCommands updates the base list of commands.
+func (m *Model) SetCommands(commands []Command) {
+	m.commands = commands
+	if m.Visible {
+		m.refilter()
+	}
+}
+
+// BuiltinCommands returns the default commands.
+func BuiltinCommands() []Command {
+	return builtinCommands()
+}

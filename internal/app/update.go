@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -289,6 +291,23 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 
 	case keyColon:
 		m.lastKey = ""
+
+		// Update commands dynamically
+		cmds := cmdpalette.BuiltinCommands()
+		if m.activeCancel != nil {
+			cmds = append([]cmdpalette.Command{
+				{
+					Name:        "cancel",
+					Description: "Cancel current operation",
+					Action: func(args []string) tea.Cmd {
+						return func() tea.Msg {
+							return cmdpalette.ExecuteMsg{Name: "cancel"}
+						}
+					},
+				},
+			}, cmds...)
+		}
+		m.CmdPalette.SetCommands(cmds)
 		return true, m.CmdPalette.Open()
 
 	case keySearch:
@@ -317,6 +336,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		if len(paths) > 0 {
 			m.Clipboard = ops.Clipboard{Entries: paths, FS: ap.FS, Op: ops.ClipCopy}
 			clear(ap.Selected)
+			ap.VisualMode = false
 			m.Statusbar.Message = fmt.Sprintf("Yanked %d item(s)", len(paths))
 		}
 		m.lastKey = ""
@@ -328,6 +348,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		if len(paths) > 0 {
 			m.Clipboard = ops.Clipboard{Entries: paths, FS: ap.FS, Op: ops.ClipCut}
 			clear(ap.Selected)
+			ap.VisualMode = false
 			m.Statusbar.Message = fmt.Sprintf("Cut %d item(s)", len(paths))
 		}
 		m.lastKey = ""
@@ -430,12 +451,15 @@ func (m *Model) doPaste() tea.Cmd {
 
 	id := fmt.Sprintf("op-%d", opCounter.Add(1))
 
+	ctx, cancel := context.WithCancel(context.Background())
+	m.activeCancel = cancel
+
 	var cmd tea.Cmd
 	if clipOp == ops.ClipCut {
 		m.Clipboard = ops.Clipboard{} // clear clipboard after cut-paste
-		cmd = ops.Move(id, sources, destDir, srcFS, dstFS)
+		cmd = ops.Move(ctx, id, sources, destDir, srcFS, dstFS)
 	} else {
-		cmd = ops.Copy(id, sources, destDir, srcFS, dstFS)
+		cmd = ops.Copy(ctx, id, sources, destDir, srcFS, dstFS)
 	}
 
 	m.Statusbar.Message = "Pasting…"
@@ -452,19 +476,25 @@ func (m *Model) handleProgress(msg ops.ProgressMsg) tea.Cmd {
 		}
 		// Check Active before SetProgress so StartSpinner fires on first StatusRunning
 		needSpinner := !m.Statusbar.Active
-		m.Statusbar.SetProgress(true, pct)
+		m.Statusbar.SetProgress(true, pct, msg.CurrentFile)
 		if needSpinner {
 			return m.Statusbar.StartSpinner()
 		}
 	case ops.StatusDone:
+		m.activeCancel = nil
 		m.Statusbar.StopSpinner()
 		m.Statusbar.Message = "Done."
 		ap.Reload()
 		m.inactivePane().Reload()
 	case ops.StatusFailed:
+		m.activeCancel = nil
 		m.Statusbar.StopSpinner()
 		if msg.Err != nil {
-			m.Statusbar.Message = "Error: " + msg.Err.Error()
+			if errors.Is(msg.Err, context.Canceled) {
+				m.Statusbar.Message = "Operation cancelled."
+			} else {
+				m.Statusbar.Message = "Error: " + msg.Err.Error()
+			}
 		}
 	}
 	return nil
@@ -479,8 +509,13 @@ func (m *Model) handleConfirmResult(msg dialog.ConfirmResultMsg) tea.Cmd {
 		ap := m.activePane()
 		paths := selectedPaths(ap)
 		clear(ap.Selected)
+		ap.VisualMode = false
 		id := fmt.Sprintf("del-%d", opCounter.Add(1))
-		return ops.Delete(id, paths, ap.FS)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		m.activeCancel = cancel
+
+		return ops.Delete(ctx, id, paths, ap.FS)
 	}
 	return nil
 }
@@ -552,6 +587,12 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 
 	case "find":
 		return m.Search.OpenRecursive(ap.Cwd)
+
+	case "cancel":
+		if m.activeCancel != nil {
+			m.activeCancel()
+			m.Statusbar.Message = "Operation cancelled."
+		}
 
 	case "goto":
 		arg := ""
