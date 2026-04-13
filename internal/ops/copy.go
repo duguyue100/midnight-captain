@@ -19,18 +19,25 @@ func Copy(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 			return ProgressMsg{OpID: id, Status: StatusFailed, Err: err}
 		}
 
+		ch := make(chan tea.Msg, 100)
 		var done int64
 
-		for _, src := range sources {
-			if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id); err != nil {
-				return ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
+		go func() {
+			defer close(ch)
+			for _, src := range sources {
+				if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
+					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
+					return
+				}
 			}
-		}
-		return ProgressMsg{OpID: id, DoneBytes: total, TotalBytes: total, Status: StatusDone}
+			ch <- ProgressMsg{OpID: id, DoneBytes: total, TotalBytes: total, Status: StatusDone}
+		}()
+
+		return ProgressStreamMsg{C: ch}
 	}
 }
 
-func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, total int64, id string) error {
+func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, total int64, id string, ch chan tea.Msg) error {
 	entry, err := srcFS.Stat(src)
 	if err != nil {
 		return err
@@ -47,7 +54,7 @@ func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, tot
 		}
 		for _, child := range children {
 			childSrc := filepath.Join(src, child.Name)
-			if err := copyEntry(childSrc, destPath, srcFS, dstFS, done, total, id); err != nil {
+			if err := copyEntry(childSrc, destPath, srcFS, dstFS, done, total, id, ch); err != nil {
 				return err
 			}
 		}
@@ -66,7 +73,7 @@ func copyEntry(src, destDir string, srcFS, dstFS fs.FileSystem, done *int64, tot
 		return err
 	}
 
-	counter := &countWriter{w: w, done: done}
+	counter := &countWriter{w: w, done: done, total: total, id: id, ch: ch}
 	_, copyErr := io.Copy(counter, r)
 
 	// Check Close error explicitly — buffered SFTP writes may flush here
@@ -113,12 +120,26 @@ func walkSize(path string, srcFS fs.FileSystem) (int64, error) {
 }
 
 type countWriter struct {
-	w    io.Writer
-	done *int64
+	w     io.Writer
+	done  *int64
+	total int64
+	id    string
+	ch    chan tea.Msg
+	last  int64
 }
 
 func (c *countWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
-	*c.done += int64(n)
+	cur := *c.done + int64(n)
+	*c.done = cur
+
+	// report every ~512KB to avoid channel flooding
+	if cur-c.last > 512*1024 || cur == c.total {
+		c.last = cur
+		select {
+		case c.ch <- ProgressMsg{OpID: c.id, DoneBytes: cur, TotalBytes: c.total, Status: StatusRunning}:
+		default: // skip if channel full
+		}
+	}
 	return n, err
 }

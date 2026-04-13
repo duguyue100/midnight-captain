@@ -87,7 +87,7 @@ type entry struct {
 
 var navKeys = []entry{
 	{"j / k", "move down / up"},
-	{"ctrl+d / ctrl+u", "half-page down / up"},
+	{"ctrl+f / ctrl+u", "half-page down / up"},
 	{"g g", "jump to top"},
 	{"G", "jump to bottom"},
 	{"tab", "switch pane"},

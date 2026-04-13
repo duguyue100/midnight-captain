@@ -45,18 +45,20 @@ type PaneInfo interface {
 
 // View renders the status bar (1 line).
 // Layout: [count] [| spinner pct%] [| message]      [tab | ? | q]
-func (m Model) View(left, right PaneInfo) string {
+func (m Model) View(active PaneInfo) string {
 	if m.Width == 0 {
 		return ""
 	}
 
 	// --- Left section: item count + optional selection ---
-	count := left.EntryCount()
-	sel := left.SelectedCount()
+	count := active.EntryCount()
+	sel := active.SelectedCount()
 
-	countStr := fmt.Sprintf(" %d items", count)
+	var countStr string
 	if sel > 0 {
-		countStr += fmt.Sprintf(" (%d selected)", sel)
+		countStr = fmt.Sprintf(" %d selected ", sel)
+	} else {
+		countStr = fmt.Sprintf(" %d items ", count)
 	}
 	left_ := styleAccent.Render(countStr)
 

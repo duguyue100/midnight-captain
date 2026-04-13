@@ -10,7 +10,7 @@ const (
 	keyOpenDir      = "o" // navigate into dir (change Cwd)
 	keyBackspace    = "backspace"
 	keyEnter        = "enter" // expand/collapse dir (same as l)
-	keyHalfDown     = "ctrl+d"
+	keyHalfDown     = "ctrl+f"
 	keyHalfUp       = "ctrl+u"
 	keyTop          = "g"
 	keyBottom       = "G"

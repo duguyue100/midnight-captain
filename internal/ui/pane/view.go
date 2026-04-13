@@ -28,8 +28,8 @@ var (
 
 	// Cursor when also selected
 	styleCursorSel = lipgloss.NewStyle().
-			Background(theme.Cyan).
-			Foreground(theme.BG).
+			Background(theme.BGVisual).
+			Foreground(theme.Cyan).
 			Bold(true)
 
 	styleSelected = lipgloss.NewStyle().

@@ -86,7 +86,7 @@ func (m Model) renderBase() string {
 		}
 	}
 
-	sb.WriteString(m.Statusbar.View(&m.Left, &m.Right))
+	sb.WriteString(m.Statusbar.View(m.activePane()))
 	// no trailing newline — content is exactly m.Height lines
 
 	return sb.String()

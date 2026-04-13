@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +59,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case ops.ProgressStreamMsg:
+		return m, func() tea.Msg {
+			msg2, ok := <-msg.C
+			if !ok {
+				return nil
+			}
+			if p, isP := msg2.(ops.ProgressMsg); isP {
+				return streamedProgressMsg{ProgressMsg: p, C: msg.C}
+			}
+			return msg2
+		}
+
+	case streamedProgressMsg:
+		cmd := m.handleProgress(msg.ProgressMsg)
+		var cmds []tea.Cmd
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if msg.Status == ops.StatusRunning {
+			cmds = append(cmds, func() tea.Msg {
+				return ops.ProgressStreamMsg{C: msg.C}
+			})
+		}
+		return m, tea.Batch(cmds...)
+
 	case ops.ProgressMsg:
 		cmd := m.handleProgress(msg)
 		if cmd != nil {
@@ -103,6 +129,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ap := m.activePane()
 		ap.NavigateTo(msg.Dir, msg.Name)
 		return m, tea.Batch(cmds...)
+
+	case EditorClosedMsg:
+		if msg.Err != nil {
+			m.Statusbar.Message = "Editor: " + msg.Err.Error()
+			os.Remove(msg.TmpPath)
+			return m, nil
+		}
+
+		info, err := os.Stat(msg.TmpPath)
+		if err != nil {
+			os.Remove(msg.TmpPath)
+			return m, nil
+		}
+
+		if info.ModTime().UnixNano() != msg.OldModTime {
+			m.Statusbar.Message = "Uploading changes…"
+
+			return m, func() tea.Msg {
+				defer os.Remove(msg.TmpPath)
+
+				f, err := os.Open(msg.TmpPath)
+				if err != nil {
+					return statusMsg("open temp: " + err.Error())
+				}
+				defer f.Close()
+
+				rf, err := msg.FS.Create(msg.RemotePath, 0o644)
+				if err != nil {
+					return statusMsg("create remote: " + err.Error())
+				}
+				defer rf.Close()
+
+				if _, err := io.Copy(rf, f); err != nil {
+					return statusMsg("upload remote: " + err.Error())
+				}
+
+				return statusMsg("Changes saved: " + filepath.Base(msg.RemotePath))
+			}
+		}
+
+		os.Remove(msg.TmpPath)
+		m.Statusbar.Message = ""
+		return m, nil
 
 	case statusMsg:
 		m.Statusbar.Message = string(msg)
@@ -204,6 +273,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 type statusMsg string
+
+type streamedProgressMsg struct {
+	ops.ProgressMsg
+	C chan tea.Msg
+}
 
 // handleGlobalKey returns (consumed bool, cmd).
 func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
@@ -313,7 +387,11 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 			return true, nil
 		}
 		if !node.Entry.IsDir {
-			return true, openInEditor(node.FullPath)
+			if node.Entry.Size > 100*1024*1024 { // 100MB
+				m.Statusbar.Message = "File too large (>100MB). Download first."
+				return true, nil
+			}
+			return true, m.openInEditor(ap.FS, node.FullPath)
 		}
 		m.lastKey = ""
 		return false, nil
@@ -488,17 +566,75 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 	return nil
 }
 
-func openInEditor(path string) tea.Cmd {
+type EditorClosedMsg struct {
+	TmpPath    string
+	RemotePath string
+	FS         appfs.FileSystem
+	OldModTime int64
+	Err        error
+}
+
+func (m *Model) openInEditor(fsys appfs.FileSystem, path string) tea.Cmd {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		editor = "vi"
 	}
-	return tea.ExecProcess(exec.Command(editor, path), func(err error) tea.Msg {
+
+	if fsys.IsLocal() {
+		return tea.ExecProcess(exec.Command(editor, path), func(err error) tea.Msg {
+			if err != nil {
+				return statusMsg(editor + ": " + err.Error())
+			}
+			return statusMsg("")
+		})
+	}
+
+	// Remote file
+	return func() tea.Msg {
+		// Create temp file
+		tmpFile, err := os.CreateTemp("", "mc-remote-edit-*")
 		if err != nil {
-			return statusMsg(editor + ": " + err.Error())
+			return statusMsg("tmp file: " + err.Error())
 		}
-		return statusMsg("")
-	})
+		tmpPath := tmpFile.Name()
+
+		// Read remote
+		remoteFile, err := fsys.Open(path)
+		if err != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return statusMsg("read remote: " + err.Error())
+		}
+
+		// Copy to temp
+		_, err = io.Copy(tmpFile, remoteFile)
+		remoteFile.Close()
+		if err != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return statusMsg("copy to temp: " + err.Error())
+		}
+		tmpFile.Close()
+
+		// Stat temp
+		info, err := os.Stat(tmpPath)
+		if err != nil {
+			os.Remove(tmpPath)
+			return statusMsg("stat temp: " + err.Error())
+		}
+		oldModTime := info.ModTime().UnixNano()
+
+		// Return command to run editor
+		return tea.ExecProcess(exec.Command(editor, tmpPath), func(err error) tea.Msg {
+			return EditorClosedMsg{
+				TmpPath:    tmpPath,
+				RemotePath: path,
+				FS:         fsys,
+				OldModTime: oldModTime,
+				Err:        err,
+			}
+		})() // invoke the returned tea.Cmd immediately to get the ExecProcess msg or run it via tea
+	}
 }
 
 // handleCreate implements smart create for the `a` key.

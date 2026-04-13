@@ -44,17 +44,27 @@ func Move(id string, sources []string, destDir string, srcFS, dstFS fs.FileSyste
 		if err != nil {
 			return ProgressMsg{OpID: id, Status: StatusFailed, Err: err}
 		}
+
+		ch := make(chan tea.Msg, 100)
 		var done int64
-		for _, src := range sources {
-			if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id); err != nil {
-				return ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
+
+		go func() {
+			defer close(ch)
+			for _, src := range sources {
+				if err := copyEntry(src, destDir, srcFS, dstFS, &done, total, id, ch); err != nil {
+					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed, Err: err}
+					return
+				}
+				// Delete source after successful copy — surface errors
+				if err := srcFS.RemoveAll(src); err != nil {
+					ch <- ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed,
+						Err: fmt.Errorf("move: copied but failed to remove source %s: %w", src, err)}
+					return
+				}
 			}
-			// Delete source after successful copy — surface errors
-			if err := srcFS.RemoveAll(src); err != nil {
-				return ProgressMsg{OpID: id, DoneBytes: done, TotalBytes: total, Status: StatusFailed,
-					Err: fmt.Errorf("move: copied but failed to remove source %s: %w", src, err)}
-			}
-		}
-		return ProgressMsg{OpID: id, DoneBytes: total, TotalBytes: total, Status: StatusDone}
+			ch <- ProgressMsg{OpID: id, DoneBytes: total, TotalBytes: total, Status: StatusDone}
+		}()
+
+		return ProgressStreamMsg{C: ch}
 	}
 }

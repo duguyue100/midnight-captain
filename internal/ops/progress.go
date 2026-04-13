@@ -1,6 +1,9 @@
 package ops
 
-import "github.com/dgyhome/midnight-captain/internal/fs"
+import (
+	"charm.land/bubbletea/v2"
+	"github.com/dgyhome/midnight-captain/internal/fs"
+)
 
 // OpType distinguishes copy/move/delete.
 type OpType int
@@ -41,6 +44,11 @@ type ProgressMsg struct {
 	TotalBytes int64
 	Status     OpStatus
 	Err        error
+}
+
+// ProgressStreamMsg wraps a channel to read continuous progress.
+type ProgressStreamMsg struct {
+	C chan tea.Msg
 }
 
 // ClipOp distinguishes yank vs cut.
