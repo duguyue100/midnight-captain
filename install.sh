@@ -5,6 +5,7 @@ REPO="duguyue100/midnight-captain"
 INSTALL_DIR="${HOME}/.local/bin"
 BINARY_NAME="mc"
 LOCAL_BUILD=0
+TMP_FILE=""
 
 # Parse args
 for arg in "$@"; do
@@ -127,15 +128,14 @@ download_release() {
   local download_url="https://github.com/${REPO}/releases/download/${tag}/${binary}"
 
   info "Downloading ${binary} (${tag})..."
-  local tmp_file=""
-  trap 'rm -f "${tmp_file}"' EXIT
-  tmp_file="$(mktemp)"
+  trap 'rm -f "${TMP_FILE}"' EXIT
+  TMP_FILE="$(mktemp)"
 
-  curl -fSL --progress-bar "${download_url}" -o "${tmp_file}" \
+  curl -fSL --progress-bar "${download_url}" -o "${TMP_FILE}" \
     || die "Download failed: ${download_url}"
 
   ensure_install_dir
-  mv "${tmp_file}" "${INSTALL_DIR}/${BINARY_NAME}"
+  mv "${TMP_FILE}" "${INSTALL_DIR}/${BINARY_NAME}"
   chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
   success "Installed midnight-captain ${tag} → ${INSTALL_DIR}/${BINARY_NAME}"
