@@ -25,19 +25,35 @@ type Session struct {
 	Connected bool
 }
 
-// Connect establishes an SSH connection to user@host[:port].
-// Auth order: SSH agent → default key files → password (not implemented here).
+// Connect establishes an SSH connection to user@host[:port] or an SSH config
+// alias.  Auth order: config IdentityFile → SSH agent → default key files.
 func Connect(target string) (*Session, error) {
-	user, host, port := parseTarget(target)
+	user, host, port, explicitUser := parseTarget(target)
+
+	// Resolve ~/.ssh/config for this host alias *before* overriding with
+	// explicit CLI values.
+	hostCfg := resolveSSHConfig(host)
+	if hostCfg != nil {
+		if hostCfg.HostName != "" {
+			host = hostCfg.HostName
+		}
+		if hostCfg.Port != "" && port == "22" {
+			port = hostCfg.Port
+		}
+		if hostCfg.User != "" && !explicitUser {
+			user = hostCfg.User
+		}
+	}
+
 	if user == "" {
 		return nil, fmt.Errorf("ssh: cannot determine username (no user@ prefix and os user lookup failed)")
 	}
 
-	authMethods, cleanup := collectAuthMethods()
+	authMethods, cleanup := collectAuthMethods(hostCfg)
 	defer cleanup()
 
 	if len(authMethods) == 0 {
-		return nil, fmt.Errorf("no auth methods available")
+		return nil, fmt.Errorf("no auth methods available (check SSH_AUTH_SOCK and key files)")
 	}
 
 	hostKeyCallback, err := buildHostKeyCallback()
@@ -45,7 +61,7 @@ func Connect(target string) (*Session, error) {
 		return nil, fmt.Errorf("ssh host key verification: %w", err)
 	}
 
-	cfg := &ssh.ClientConfig{
+	clientCfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
@@ -53,9 +69,9 @@ func Connect(target string) (*Session, error) {
 	}
 
 	addr := net.JoinHostPort(host, port)
-	client, err := ssh.Dial("tcp", addr, cfg)
+	client, err := ssh.Dial("tcp", addr, clientCfg)
 	if err != nil {
-		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
+		return nil, fmt.Errorf("ssh dial %s (user=%s): %w", addr, user, err)
 	}
 
 	sftpClient, err := sftp.NewClient(client)
@@ -85,11 +101,13 @@ func (s *Session) Close() {
 }
 
 // parseTarget splits "user@host:port" into components.
-func parseTarget(target string) (userName, host, port string) {
+// Returns explicitUser=true when a user@ prefix was provided.
+func parseTarget(target string) (userName, host, port string, explicitUser bool) {
 	port = "22"
 	if idx := strings.Index(target, "@"); idx >= 0 {
 		userName = target[:idx]
 		target = target[idx+1:]
+		explicitUser = true
 	} else {
 		// Fallback: try os/user.Current(), then $USER env
 		if u, err := user.Current(); err == nil {
@@ -107,25 +125,38 @@ func parseTarget(target string) (userName, host, port string) {
 	return
 }
 
-func collectAuthMethods() ([]ssh.AuthMethod, func()) {
+func collectAuthMethods(hostCfg *sshHostConfig) ([]ssh.AuthMethod, func()) {
 	var methods []ssh.AuthMethod
 	var closers []func()
 
-	// SSH agent
+	// Put specific IdentityFiles FIRST (before agent) so they get priority!
+	var agentClient agent.Agent
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
-		conn, err := net.Dial("unix", sock)
-		if err == nil {
+		if conn, err := net.Dial("unix", sock); err == nil {
 			closers = append(closers, func() { conn.Close() })
-			methods = append(methods, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
+			agentClient = agent.NewClient(conn)
 		}
 	}
 
-	// Default key files
+	// IdentityFiles from ~/.ssh/config
+	if hostCfg != nil {
+		for _, keyPath := range hostCfg.IdentityFiles {
+			if m := loadKeyOrAgent(keyPath, agentClient); m != nil {
+				methods = append(methods, m)
+			}
+		}
+	}
+
+	// SSH agent (try agent keys AFTER explicit keys)
+	if agentClient != nil {
+		methods = append(methods, ssh.PublicKeysCallback(agentClient.Signers))
+	}
+
 	home, _ := os.UserHomeDir()
+	// Default key files
 	for _, name := range []string{"id_ed25519", "id_rsa", "id_ecdsa"} {
 		keyPath := filepath.Join(home, ".ssh", name)
 		if key, err := tryLoadKey(keyPath); err != nil {
-			// Log non-trivial errors (file exists but can't parse — e.g. passphrase-protected)
 			if !os.IsNotExist(err) {
 				log.Printf("ssh: skipping key %s: %v", keyPath, err)
 			}
@@ -133,6 +164,13 @@ func collectAuthMethods() ([]ssh.AuthMethod, func()) {
 			methods = append(methods, key)
 		}
 	}
+
+	// keyboard-interactive
+	methods = append(methods, ssh.KeyboardInteractive(
+		func(name, instruction string, questions []string, echos []bool) ([]string, error) {
+			return make([]string, len(questions)), nil
+		},
+	))
 
 	cleanup := func() {
 		for _, c := range closers {
@@ -142,9 +180,6 @@ func collectAuthMethods() ([]ssh.AuthMethod, func()) {
 	return methods, cleanup
 }
 
-// tryLoadKey loads an SSH private key from disk.
-// Returns (nil, nil) if file doesn't exist.
-// Returns (nil, err) if file exists but can't be parsed (e.g. passphrase-protected).
 func tryLoadKey(path string) (ssh.AuthMethod, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -160,9 +195,50 @@ func tryLoadKey(path string) (ssh.AuthMethod, error) {
 	return ssh.PublicKeys(signer), nil
 }
 
-// buildHostKeyCallback returns a host-key callback using known_hosts.
-// Returns an error instead of silently falling back to insecure when known_hosts
-// is missing or unreadable — callers must handle this explicitly.
+func loadKeyOrAgent(keyPath string, ag agent.Agent) ssh.AuthMethod {
+	// Try direct load first (unencrypted key)
+	if m, err := tryLoadKey(keyPath); err == nil && m != nil {
+		return m
+	}
+
+	// Fallback: match via agent using the .pub sidecar file
+	if ag == nil {
+		return nil
+	}
+	pubPath := keyPath + ".pub"
+	pubData, err := os.ReadFile(pubPath)
+	if err != nil {
+		return nil
+	}
+	wantPub, _, _, _, err := ssh.ParseAuthorizedKey(pubData)
+	if err != nil {
+		return nil
+	}
+	wantFP := ssh.FingerprintSHA256(wantPub)
+
+	agentKeys, err := ag.List()
+	if err != nil {
+		return nil
+	}
+	for _, ak := range agentKeys {
+		if ssh.FingerprintSHA256(ak) == wantFP {
+			return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+				signers, err := ag.Signers()
+				if err != nil {
+					return nil, err
+				}
+				for _, s := range signers {
+					if ssh.FingerprintSHA256(s.PublicKey()) == wantFP {
+						return []ssh.Signer{s}, nil
+					}
+				}
+				return nil, fmt.Errorf("agent key vanished")
+			})
+		}
+	}
+	return nil
+}
+
 func buildHostKeyCallback() (ssh.HostKeyCallback, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

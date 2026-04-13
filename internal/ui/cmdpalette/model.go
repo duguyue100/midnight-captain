@@ -14,14 +14,13 @@ type Command struct {
 
 // Model holds command palette state.
 type Model struct {
-	input      textinput.Model
-	Visible    bool
-	justOpened bool // drop first key event after open (prevents trigger char leaking into input)
-	commands   []Command
-	filtered   []Command
-	Cursor     int
-	Width      int
-	Height     int
+	input    textinput.Model
+	Visible  bool
+	commands []Command
+	filtered []Command
+	Cursor   int
+	Width    int
+	Height   int
 }
 
 // New creates a command palette model.
@@ -41,7 +40,6 @@ func New() Model {
 // Open shows the palette and focuses the input.
 func (m *Model) Open() tea.Cmd {
 	m.Visible = true
-	m.justOpened = true
 	m.Cursor = 0
 	m.input.Reset()
 	m.filtered = m.commands

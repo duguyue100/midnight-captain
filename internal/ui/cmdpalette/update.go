@@ -14,12 +14,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		// Drop the first key event after open — prevents trigger char (`:`) leaking in.
-		if m.justOpened {
-			m.justOpened = false
-			return m, nil
-		}
-
 		switch msg.String() {
 		case "esc":
 			m.Close()

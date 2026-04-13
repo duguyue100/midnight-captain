@@ -169,33 +169,15 @@ func TestExecuteWithArgs(t *testing.T) {
 	}
 }
 
-// --- justOpened ---
+// --- first key after open ---
 
-func TestJustOpenedSetOnOpen(t *testing.T) {
+func TestFirstKeyAfterOpenProcessed(t *testing.T) {
 	m := New()
 	m.Open()
-	if !m.justOpened {
-		t.Error("justOpened should be true after Open()")
-	}
-}
-
-func TestJustOpenedClearsAfterFirstKey(t *testing.T) {
-	m := New()
-	m.Open()
-	// First key event should be dropped and justOpened cleared
-	m2, _ := m.Update(keyMsg("q"))
-	if m2.justOpened {
-		t.Error("justOpened should be false after first key event")
-	}
-}
-
-func TestJustOpenedSecondKeyProcessed(t *testing.T) {
-	m := New()
-	m.Open()
-	// First key — dropped
-	m2, _ := m.Update(keyMsg("x"))
-	// Second key — should be processed (not dropped)
-	if m2.justOpened {
-		t.Fatal("justOpened not cleared after first key")
+	// First key should NOT be dropped — trigger char `:` is consumed
+	// by app layer before palette sees it.
+	m2, _ := m.Update(keyMsg("s"))
+	if m2.input.Value() != "s" {
+		t.Errorf("first key should be processed, input=%q want 's'", m2.input.Value())
 	}
 }
