@@ -242,7 +242,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		paths := selectedPaths(ap)
 		if len(paths) > 0 {
 			m.Clipboard = ops.Clipboard{Entries: paths, FS: ap.FS, Op: ops.ClipCopy}
-			ap.Selected = make(map[int]bool)
+			clear(ap.Selected)
 			m.Statusbar.Message = fmt.Sprintf("Yanked %d item(s)", len(paths))
 		}
 		m.lastKey = ""
@@ -253,7 +253,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		paths := selectedPaths(ap)
 		if len(paths) > 0 {
 			m.Clipboard = ops.Clipboard{Entries: paths, FS: ap.FS, Op: ops.ClipCut}
-			ap.Selected = make(map[int]bool)
+			clear(ap.Selected)
 			m.Statusbar.Message = fmt.Sprintf("Cut %d item(s)", len(paths))
 		}
 		m.lastKey = ""
@@ -313,7 +313,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 			return true, nil
 		}
 		if !node.Entry.IsDir {
-			return true, openInNvim(node.FullPath)
+			return true, openInEditor(node.FullPath)
 		}
 		m.lastKey = ""
 		return false, nil
@@ -400,7 +400,7 @@ func (m *Model) handleConfirmResult(msg dialog.ConfirmResultMsg) tea.Cmd {
 	case "delete":
 		ap := m.activePane()
 		paths := selectedPaths(ap)
-		ap.Selected = make(map[int]bool)
+		clear(ap.Selected)
 		id := fmt.Sprintf("del-%d", opCounter.Add(1))
 		return ops.Delete(id, paths, ap.FS)
 	}
@@ -488,10 +488,14 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 	return nil
 }
 
-func openInNvim(path string) tea.Cmd {
-	return tea.ExecProcess(exec.Command("nvim", path), func(err error) tea.Msg {
+func openInEditor(path string) tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	return tea.ExecProcess(exec.Command(editor, path), func(err error) tea.Msg {
 		if err != nil {
-			return statusMsg("nvim: " + err.Error())
+			return statusMsg(editor + ": " + err.Error())
 		}
 		return statusMsg("")
 	})
@@ -531,7 +535,10 @@ func (m *Model) handleCreate(ap *pane.Model, baseDir, input string) {
 			m.Statusbar.Message = "create: " + err.Error()
 			return
 		}
-		f.Close()
+		if err := f.Close(); err != nil {
+			m.Statusbar.Message = "close: " + err.Error()
+			return
+		}
 	}
 	ap.Reload()
 	m.Statusbar.Message = "Created: " + input
@@ -543,10 +550,11 @@ func mkdirAllFS(fsys appfs.FileSystem, path string) error {
 	parts := []string{}
 	p := filepath.Clean(path)
 	for p != "/" && p != "." {
-		parts = append([]string{p}, parts...)
+		parts = append(parts, p)
 		p = filepath.Dir(p)
 	}
-	for _, part := range parts {
+	for i := len(parts) - 1; i >= 0; i-- {
+		part := parts[i]
 		err := fsys.Mkdir(part, 0o755)
 		if err != nil {
 			if os.IsExist(err) {

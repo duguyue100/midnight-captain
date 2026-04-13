@@ -2,6 +2,8 @@ package app
 
 import (
 	"os"
+	"path/filepath"
+	"sort"
 
 	"github.com/dgyhome/midnight-captain/internal/fs"
 	"github.com/dgyhome/midnight-captain/internal/ops"
@@ -118,7 +120,12 @@ func (m *Model) propagateSizes() {
 func selectedPaths(ap *pane.Model) []string {
 	if len(ap.Selected) > 0 {
 		paths := make([]string, 0, len(ap.Selected))
+		idxs := make([]int, 0, len(ap.Selected))
 		for idx := range ap.Selected {
+			idxs = append(idxs, idx)
+		}
+		sort.Ints(idxs)
+		for _, idx := range idxs {
 			if idx < len(ap.Nodes) {
 				paths = append(paths, ap.Nodes[idx].FullPath)
 			}
@@ -137,16 +144,7 @@ func selectedNames(ap *pane.Model) []string {
 	paths := selectedPaths(ap)
 	names := make([]string, len(paths))
 	for i, p := range paths {
-		names[i] = baseName(p)
+		names[i] = filepath.Base(p)
 	}
 	return names
-}
-
-func baseName(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return path[i+1:]
-		}
-	}
-	return path
 }
