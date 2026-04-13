@@ -17,7 +17,7 @@ I hope you would like it, at least I do. Since this project is entirely vibe-cod
 
 - **Dual pane** — navigate two directories side by side, copy/move between them
 - **Tree expand** — expand/collapse directories inline with `l`/`h`, nerd font icons
-- **Vim keybindings** — `j`/`k`/`h`/`l`, `gg`/`G`, `ctrl+d`/`ctrl+u`
+- **Vim keybindings** — `j`/`k`/`h`/`l`, `g`/`G`, `ctrl+f`/`ctrl+u`
 - **Visual selection** — select ranges with `V`, operate on multiple files at once
 - **File operations** — copy, cut, paste, delete (with confirmation), rename
 - **Smart create** — `a` creates a file or directory (trailing `/` = dir, nested paths supported)
@@ -89,8 +89,8 @@ Launches in the current directory with dual panes.
 | Key | Action |
 |-----|--------|
 | `j` / `k` | Move cursor down / up |
-| `ctrl+d` / `ctrl+u` | Half-page down / up |
-| `gg` | Jump to top |
+| `ctrl+f` / `ctrl+u` | Half-page down / up |
+| `g` | Jump to top |
 | `G` | Jump to bottom |
 | `tab` | Switch active pane |
 | `h` | Collapse directory or jump to parent |
@@ -115,7 +115,7 @@ Launches in the current directory with dual panes.
 | `d` | Cut to clipboard |
 | `p` | Paste into active pane |
 | `x` | Delete (prompts for confirmation) |
-| `e` | Open in `nvim` |
+| `e` | Open in `$EDITOR` (or `vi`). Supports remote file editing (downloads, edits, uploads on save if <100MB) |
 
 ### Search & Commands
 
@@ -140,4 +140,5 @@ Open with `:`, then type a command.
 | `:find` | Recursive fuzzy search from current directory |
 | `:sort name\|size\|date` | Change sort order |
 | `:hidden` | Toggle hidden files |
+| `:cancel` | Cancel an active background operation (copy/move/delete) |
 | `:quit` | Exit |
