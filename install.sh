@@ -127,9 +127,9 @@ download_release() {
   local download_url="https://github.com/${REPO}/releases/download/${tag}/${binary}"
 
   info "Downloading ${binary} (${tag})..."
-  local tmp_file
-  tmp_file="$(mktemp)"
+  local tmp_file=""
   trap 'rm -f "${tmp_file}"' EXIT
+  tmp_file="$(mktemp)"
 
   curl -fSL --progress-bar "${download_url}" -o "${tmp_file}" \
     || die "Download failed: ${download_url}"
