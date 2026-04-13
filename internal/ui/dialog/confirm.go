@@ -54,8 +54,10 @@ func (m ConfirmModel) Update(msg tea.Msg) (ConfirmModel, tea.Cmd) {
 			return m, func() tea.Msg { return ConfirmResultMsg{ID: m.ID, Confirmed: confirmed} }
 		case "h", "left":
 			m.choice = true
-		case "l", "right", "tab":
+		case "l", "right":
 			m.choice = false
+		case "tab", "shift+tab":
+			m.choice = !m.choice
 		}
 	}
 	return m, nil
