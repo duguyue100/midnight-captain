@@ -1,5 +1,5 @@
 BINARY    := mc
-VERSION   := 0.1.6
+VERSION   := 0.1.7
 LDFLAGS   := -ldflags "-s -w -X main.version=$(VERSION)"
 
 .PHONY: build install clean run
