@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	appfs "github.com/dgyhome/midnight-captain/internal/fs"
 	"sort"
 	"strings"
 
@@ -36,6 +37,7 @@ type Model struct {
 	// PaneCwd is the active pane's working directory, used as base for
 	// relative paths instead of the process cwd.
 	PaneCwd string
+	FS      appfs.FileSystem
 
 	Width  int
 	Height int
@@ -54,7 +56,8 @@ func New() Model {
 
 // Open shows the prompt, optionally seeding it with an initial path.
 // paneCwd is the active pane's working directory used as base for relative paths.
-func (m *Model) Open(seed string, paneCwd string) tea.Cmd {
+func (m *Model) Open(seed string, paneCwd string, fsys appfs.FileSystem) tea.Cmd {
+	m.FS = fsys
 	m.Visible = true
 	m.cursor = -1
 	m.PaneCwd = paneCwd
@@ -207,6 +210,14 @@ func (m *Model) refresh() {
 	}
 
 	// Determine which directory to list and which prefix to filter by.
+	// If remote, skip autocomplete to avoid blocking UI thread.
+	if m.FS != nil && !m.FS.IsLocal() {
+		m.listDir = ""
+		m.entries = nil
+		m.notFound = false
+		return
+	}
+
 	// If raw ends with '/', list that dir with no filter.
 	// Otherwise, list parent dir and filter by the last component.
 	var listDir, prefix string
@@ -301,6 +312,11 @@ func (m *Model) resolveDir(raw string) string {
 		expanded = filepath.Join(base, expanded)
 	}
 	expanded = filepath.Clean(expanded)
+	
+	if m.FS != nil && !m.FS.IsLocal() {
+		return expanded
+	}
+
 	info, err := os.Stat(expanded)
 	if err != nil {
 		return ""

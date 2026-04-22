@@ -90,10 +90,17 @@ func (m Model) View() string {
 	}
 
 	rendered := 0
-	for i := m.Offset; i < end; i++ {
-		sb.WriteString(m.renderRow(i, innerW))
+	if m.Err != nil {
+		errStr := truncateCols(" Error: "+m.Err.Error(), innerW)
+		sb.WriteString(lipgloss.NewStyle().Foreground(theme.Red).Width(innerW).Render(errStr))
 		sb.WriteByte('\n')
 		rendered++
+	} else {
+		for i := m.Offset; i < end; i++ {
+			sb.WriteString(m.renderRow(i, innerW))
+			sb.WriteByte('\n')
+			rendered++
+		}
 	}
 	// Pad empty rows
 	emptyRow := strings.Repeat(" ", innerW)

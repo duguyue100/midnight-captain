@@ -55,6 +55,15 @@ func builtinCommands() []Command {
 			},
 		},
 		{
+			Name:        "refresh",
+			Description: "Refresh current directory",
+			Action: func(args []string) tea.Cmd {
+				return func() tea.Msg {
+					return ExecuteMsg{Name: "refresh"}
+				}
+			},
+		},
+		{
 			Name:        "goto",
 			Description: "Go to path: goto <path>",
 			Action: func(args []string) tea.Cmd {

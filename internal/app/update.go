@@ -594,12 +594,15 @@ func (m *Model) handleCommand(msg cmdpalette.ExecuteMsg) tea.Cmd {
 			m.Statusbar.Message = "Operation cancelled."
 		}
 
+	case "refresh":
+		ap.Reload()
+
 	case "goto":
 		arg := ""
 		if len(msg.Args) > 0 {
 			arg = msg.Args[0]
 		}
-		return m.Goto.Open(arg, ap.Cwd)
+		return m.Goto.Open(arg, ap.Cwd, ap.FS)
 
 	case "quit":
 		return tea.Quit
