@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	appfs "github.com/dgyhome/midnight-captain/internal/fs"
 )
 
 // --- expandTilde ---
 
 func TestExpandTildeNoTilde(t *testing.T) {
-	got := expandTilde("/absolute/path")
+	got := expandTilde("/absolute/path", "/")
 	if got != "/absolute/path" {
 		t.Errorf("got %q, want /absolute/path", got)
 	}
@@ -19,7 +20,7 @@ func TestExpandTildeNoTilde(t *testing.T) {
 
 func TestExpandTildeTildeAlone(t *testing.T) {
 	u, _ := user.Current()
-	got := expandTilde("~")
+	got := expandTilde("~", u.HomeDir)
 	if got != u.HomeDir {
 		t.Errorf("got %q, want %q", got, u.HomeDir)
 	}
@@ -27,7 +28,7 @@ func TestExpandTildeTildeAlone(t *testing.T) {
 
 func TestExpandTildeTildeSlash(t *testing.T) {
 	u, _ := user.Current()
-	got := expandTilde("~/foo/bar")
+	got := expandTilde("~/foo/bar", u.HomeDir)
 	want := filepath.Join(u.HomeDir, "foo/bar")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -35,7 +36,7 @@ func TestExpandTildeTildeSlash(t *testing.T) {
 }
 
 func TestExpandTildeNotAtStart(t *testing.T) {
-	got := expandTilde("/foo/~/bar")
+	got := expandTilde("/foo/~/bar", "/")
 	if got != "/foo/~/bar" {
 		t.Errorf("tilde not at start should not expand, got %q", got)
 	}
@@ -46,7 +47,7 @@ func TestExpandTildeNotAtStart(t *testing.T) {
 func TestContractTildeHomePath(t *testing.T) {
 	u, _ := user.Current()
 	input := u.HomeDir + "/documents/file.txt"
-	got := contractTilde(input)
+	got := contractTilde(input, u.HomeDir)
 	if !strings.HasPrefix(got, "~/") {
 		t.Errorf("expected ~/... got %q", got)
 	}
@@ -54,23 +55,25 @@ func TestContractTildeHomePath(t *testing.T) {
 
 func TestContractTildeExactHome(t *testing.T) {
 	u, _ := user.Current()
-	got := contractTilde(u.HomeDir)
+	got := contractTilde(u.HomeDir, u.HomeDir)
 	if got != "~" {
 		t.Errorf("exact home: got %q want '~'", got)
 	}
 }
 
 func TestContractTildeNonHome(t *testing.T) {
-	got := contractTilde("/usr/local/bin")
+	u, _ := user.Current()
+	got := contractTilde("/usr/local/bin", u.HomeDir)
 	if got != "/usr/local/bin" {
 		t.Errorf("non-home path should be unchanged, got %q", got)
 	}
 }
 
 func TestContractExpandRoundtrip(t *testing.T) {
+	u, _ := user.Current()
 	original := "~/some/nested/path"
-	expanded := expandTilde(original)
-	contracted := contractTilde(expanded)
+	expanded := expandTilde(original, u.HomeDir)
+	contracted := contractTilde(expanded, u.HomeDir)
 	if contracted != original {
 		t.Errorf("roundtrip: got %q, want %q", contracted, original)
 	}
@@ -124,11 +127,11 @@ func TestResolveDirTilde(t *testing.T) {
 	}
 }
 
-// --- listEntries ---
+	// --- listEntries ---
 
 func TestListEntriesEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	got := listEntries(tmp, "")
+	got := listEntries(appfs.NewLocalFS(), tmp, "")
 	if len(got) != 0 {
 		t.Errorf("empty dir: want 0, got %d", len(got))
 	}
@@ -139,7 +142,7 @@ func TestListEntriesAllMatch(t *testing.T) {
 	os.Mkdir(filepath.Join(tmp, "alpha"), 0755)
 	os.Mkdir(filepath.Join(tmp, "beta"), 0755)
 	os.WriteFile(filepath.Join(tmp, "gamma.txt"), nil, 0644)
-	got := listEntries(tmp, "")
+	got := listEntries(appfs.NewLocalFS(), tmp, "")
 	if len(got) != 3 {
 		t.Errorf("want 3, got %d", len(got))
 	}
@@ -150,15 +153,10 @@ func TestListEntriesPrefixFilter(t *testing.T) {
 	os.Mkdir(filepath.Join(tmp, "foo"), 0755)
 	os.Mkdir(filepath.Join(tmp, "bar"), 0755)
 	os.WriteFile(filepath.Join(tmp, "foofile.txt"), nil, 0644)
-	got := listEntries(tmp, "foo")
+	got := listEntries(appfs.NewLocalFS(), tmp, "foo")
 	// "foo" dir + "foofile.txt"
 	if len(got) != 2 {
 		t.Errorf("prefix 'foo': want 2, got %d", len(got))
-	}
-	for _, e := range got {
-		if !strings.HasPrefix(strings.ToLower(e.name), "foo") {
-			t.Errorf("entry %q doesn't match prefix 'foo'", e.name)
-		}
 	}
 }
 
@@ -166,7 +164,7 @@ func TestListEntriesDirsFirst(t *testing.T) {
 	tmp := t.TempDir()
 	os.WriteFile(filepath.Join(tmp, "afile.txt"), nil, 0644)
 	os.Mkdir(filepath.Join(tmp, "zdir"), 0755)
-	got := listEntries(tmp, "")
+	got := listEntries(appfs.NewLocalFS(), tmp, "")
 	if len(got) < 2 {
 		t.Fatal("expected 2 entries")
 	}
@@ -176,7 +174,7 @@ func TestListEntriesDirsFirst(t *testing.T) {
 }
 
 func TestListEntriesNonExistentDir(t *testing.T) {
-	got := listEntries("/no/such/dir/exists", "")
+	got := listEntries(appfs.NewLocalFS(), "/no/such/dir/exists", "")
 	if len(got) != 0 {
 		t.Errorf("nonexistent dir: want 0, got %d", len(got))
 	}

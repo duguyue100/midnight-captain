@@ -309,6 +309,7 @@ func (m *mockFS) Create(path string, perm os.FileMode) (io.WriteCloser, error) {
 }
 func (m *mockFS) IsLocal() bool { return true }
 func (m *mockFS) Root() string  { return "/" }
+func (m *mockFS) Home() string  { return "/" }
 
 type nopWriteCloser struct{}
 

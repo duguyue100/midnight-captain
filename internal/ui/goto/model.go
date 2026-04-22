@@ -187,10 +187,10 @@ func (m *Model) applySelection() {
 	if e.isDir {
 		joined += "/"
 	}
-	home := ""
-	if m.FS != nil {
-		home = m.FS.Home()
+	if m.FS == nil {
+		m.FS = appfs.NewLocalFS()
 	}
+	home := m.FS.Home()
 
 	// Shorten home dir back to ~
 	joined = contractTilde(joined, home)
@@ -202,10 +202,12 @@ func (m *Model) applySelection() {
 func (m *Model) refresh() {
 	m.notFound = false
 	raw := m.input.Value()
-	home := ""
-	if m.FS != nil {
-		home = m.FS.Home()
+
+	if m.FS == nil {
+		m.FS = appfs.NewLocalFS()
 	}
+
+	home := m.FS.Home()
 	expanded := expandTilde(raw, home)
 
 	if !filepath.IsAbs(expanded) {
@@ -299,10 +301,12 @@ func (m *Model) resolveDir(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	home := ""
-	if m.FS != nil {
-		home = m.FS.Home()
+
+	if m.FS == nil {
+		m.FS = appfs.NewLocalFS()
 	}
+
+	home := m.FS.Home()
 	expanded := expandTilde(raw, home)
 	if !filepath.IsAbs(expanded) {
 		base := m.PaneCwd
