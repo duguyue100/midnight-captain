@@ -21,4 +21,5 @@ type FileSystem interface {
 	// Metadata
 	IsLocal() bool
 	Root() string
+	Home() string
 }

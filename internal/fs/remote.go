@@ -11,12 +11,17 @@ import (
 type RemoteFS struct {
 	client *sftp.Client
 	root   string
+	home   string
 	label  string // "user@host"
 }
 
 // NewRemoteFS wraps an sftp.Client as a FileSystem.
 func NewRemoteFS(client *sftp.Client, label string) *RemoteFS {
-	return &RemoteFS{client: client, root: "/", label: label}
+	home, err := client.Getwd()
+	if err != nil {
+		home = "/"
+	}
+	return &RemoteFS{client: client, root: "/", home: home, label: label}
 }
 
 func (r *RemoteFS) List(dir string) ([]FileEntry, error) {
@@ -88,6 +93,7 @@ func (r *RemoteFS) Create(path string, perm os.FileMode) (io.WriteCloser, error)
 
 func (r *RemoteFS) IsLocal() bool { return false }
 func (r *RemoteFS) Root() string  { return r.label }
+func (r *RemoteFS) Home() string  { return r.home }
 
 func infoToEntry(info os.FileInfo) FileEntry {
 	return FileEntry{

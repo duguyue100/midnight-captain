@@ -3,6 +3,7 @@ package fs
 import (
 	"io"
 	"os"
+	"os/user"
 )
 
 // LocalFS implements FileSystem for the local OS.
@@ -87,3 +88,10 @@ func (l *LocalFS) Create(path string, perm os.FileMode) (io.WriteCloser, error) 
 
 func (l *LocalFS) IsLocal() bool { return true }
 func (l *LocalFS) Root() string  { return "/" }
+func (l *LocalFS) Home() string {
+	u, err := user.Current()
+	if err != nil {
+		return "/"
+	}
+	return u.HomeDir
+}

@@ -87,7 +87,11 @@ func (m Model) View() string {
 	// Divider with listing dir label
 	label := ""
 	if m.listDir != "" {
-		label = contractTilde(m.listDir)
+		home := ""
+		if m.FS != nil {
+			home = m.FS.Home()
+		}
+		label = contractTilde(m.listDir, home)
 	}
 	divLine := fmt.Sprintf("── %s ", label)
 	if len([]rune(divLine)) < gotoFieldW {

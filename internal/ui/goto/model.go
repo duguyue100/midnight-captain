@@ -2,14 +2,13 @@ package goto_
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
-	appfs "github.com/dgyhome/midnight-captain/internal/fs"
 	"sort"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbletea/v2"
+	appfs "github.com/dgyhome/midnight-captain/internal/fs"
 )
 
 // NavigateMsg is emitted when the user confirms a destination.
@@ -188,8 +187,13 @@ func (m *Model) applySelection() {
 	if e.isDir {
 		joined += "/"
 	}
+	home := ""
+	if m.FS != nil {
+		home = m.FS.Home()
+	}
+
 	// Shorten home dir back to ~
-	joined = contractTilde(joined)
+	joined = contractTilde(joined, home)
 	m.input.SetValue(joined)
 	m.input.CursorEnd()
 }
@@ -198,7 +202,11 @@ func (m *Model) applySelection() {
 func (m *Model) refresh() {
 	m.notFound = false
 	raw := m.input.Value()
-	expanded := expandTilde(raw)
+	home := ""
+	if m.FS != nil {
+		home = m.FS.Home()
+	}
+	expanded := expandTilde(raw, home)
 
 	if !filepath.IsAbs(expanded) {
 		// Use pane's Cwd as base for relative paths, not process cwd
@@ -210,19 +218,14 @@ func (m *Model) refresh() {
 	}
 
 	// Determine which directory to list and which prefix to filter by.
-	// If remote, skip autocomplete to avoid blocking UI thread.
-	if m.FS != nil && !m.FS.IsLocal() {
-		m.listDir = ""
-		m.entries = nil
-		m.notFound = false
-		return
-	}
-
-	// If raw ends with '/', list that dir with no filter.
-	// Otherwise, list parent dir and filter by the last component.
+	// We no longer skip autocomplete for remote, we just do it synchronously.
+	// Since we type letter by letter, let's cache the directory listing locally.
+	// But actually, just calling m.FS.List might be acceptable or we'll add caching soon.
+	// Actually, wait, let's use m.FS for checking directory existence.
 	var listDir, prefix string
-	info, err := os.Stat(expanded)
-	if err == nil && info.IsDir() {
+
+	info, err := m.FS.Stat(expanded)
+	if err == nil && info.IsDir {
 		// exact dir match (or ends with /)
 		listDir = filepath.Clean(expanded)
 		prefix = ""
@@ -230,7 +233,7 @@ func (m *Model) refresh() {
 		listDir = filepath.Dir(expanded)
 		prefix = strings.ToLower(filepath.Base(expanded))
 		// Check parent exists
-		if _, err := os.Stat(listDir); err != nil {
+		if _, err := m.FS.Stat(listDir); err != nil {
 			m.listDir = ""
 			m.entries = nil
 			m.notFound = true
@@ -239,20 +242,20 @@ func (m *Model) refresh() {
 	}
 
 	m.listDir = listDir
-	m.entries = listEntries(listDir, prefix)
+	m.entries = listEntries(m.FS, listDir, prefix)
 }
 
 // listEntries reads a directory and returns entries matching the prefix.
-func listEntries(dir, prefix string) []entry {
-	des, err := os.ReadDir(dir)
+func listEntries(fsys appfs.FileSystem, dir, prefix string) []entry {
+	des, err := fsys.List(dir)
 	if err != nil {
 		return nil
 	}
 	out := make([]entry, 0, len(des))
 	for _, de := range des {
-		name := de.Name()
+		name := de.Name
 		if strings.HasPrefix(strings.ToLower(name), prefix) {
-			out = append(out, entry{name: name, isDir: de.IsDir()})
+			out = append(out, entry{name: name, isDir: de.IsDir})
 		}
 	}
 	// Sort: dirs first, then alpha
@@ -265,29 +268,22 @@ func listEntries(dir, prefix string) []entry {
 	return out
 }
 
-// expandTilde replaces a leading ~ with the home directory.
-func expandTilde(s string) string {
+// expandTilde replaces a leading ~ with the given home directory.
+func expandTilde(s string, home string) string {
 	if s == "~" || strings.HasPrefix(s, "~/") {
-		u, err := user.Current()
-		if err != nil {
-			home := os.Getenv("HOME")
-			if home == "" {
-				return s
-			}
-			return home + s[1:]
+		if home == "" {
+			return s
 		}
-		return u.HomeDir + s[1:]
+		return home + s[1:]
 	}
 	return s
 }
 
 // contractTilde replaces the home directory prefix with ~.
-func contractTilde(s string) string {
-	u, err := user.Current()
-	if err != nil {
+func contractTilde(s string, home string) string {
+	if home == "" {
 		return s
 	}
-	home := u.HomeDir
 	if strings.HasPrefix(s, home+"/") {
 		return "~/" + s[len(home)+1:]
 	}
@@ -303,7 +299,11 @@ func (m *Model) resolveDir(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	expanded := expandTilde(raw)
+	home := ""
+	if m.FS != nil {
+		home = m.FS.Home()
+	}
+	expanded := expandTilde(raw, home)
 	if !filepath.IsAbs(expanded) {
 		base := m.PaneCwd
 		if base == "" {
@@ -313,15 +313,11 @@ func (m *Model) resolveDir(raw string) string {
 	}
 	expanded = filepath.Clean(expanded)
 	
-	if m.FS != nil && !m.FS.IsLocal() {
-		return expanded
-	}
-
-	info, err := os.Stat(expanded)
+	info, err := m.FS.Stat(expanded)
 	if err != nil {
 		return ""
 	}
-	if info.IsDir() {
+	if info.IsDir {
 		return expanded
 	}
 	return filepath.Dir(expanded)
