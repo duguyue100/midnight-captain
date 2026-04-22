@@ -138,6 +138,7 @@ Open with `:`, then type a command.
 | `:disconnect` | Disconnect SSH, return to local filesystem |
 | `:goto <path>` | Jump to path with live completion |
 | `:find` | Recursive fuzzy search from current directory |
+| `:refresh` | Refresh current directory content |
 | `:sort name\|size\|date` | Change sort order |
 | `:hidden` | Toggle hidden files |
 | `:cancel` | Cancel an active background operation (copy/move/delete) |

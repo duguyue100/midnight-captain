@@ -113,15 +113,16 @@ var actionKeys = []entry{
 	{"q", "quit"},
 }
 
-var commands = []entry{
-	{":sort name|size|date", "sort entries"},
-	{":hidden", "toggle hidden"},
-	{":goto <path>", "jump to path"},
-	{":find", "recursive search"},
-	{":ssh user@host", "connect SSH"},
-	{":disconnect", "disconnect SSH"},
-	{":quit", "exit"},
-}
+	var commands = []entry{
+		{":sort name|size|date", "sort entries"},
+		{":hidden", "toggle hidden"},
+		{":refresh", "refresh directory"},
+		{":goto <path>", "jump to path"},
+		{":find", "recursive search"},
+		{":ssh user@host", "connect SSH"},
+		{":disconnect", "disconnect SSH"},
+		{":quit", "exit"},
+	}
 
 // View renders the help overlay (empty string if not visible).
 func (m Model) View() string {
